@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: argus-postgres
+    environment:
+      - POSTGRES_USER=argus
+      - POSTGRES_PASSWORD=argus
+      - POSTGRES_DB=argus
+    ports:
+      - "5432:5432"
+    volumes:
+      - argus-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: argus-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://argus:argus@postgres:5432/argus
+      - ARGUS_ENV=development
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Redis is optional per spec Section 6 — uncomment if/when a later phase needs it.
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: argus-redis
+  #   ports:
+  #     - "6379:6379"
+
+volumes:
+  argus-pg-data:
