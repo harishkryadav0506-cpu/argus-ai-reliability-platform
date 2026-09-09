@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from app.schemas.simulation import FaultType
 from app.services import incident_service
+from app.ml.anomaly_detection import AnomalyDetector
+from app.ml.failure_prediction import FailureClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +96,10 @@ class SimulationEngine:
         # Background runner state
         self._running: bool = False
         self._task: Optional[asyncio.Task] = None
+
+        # ML Detection and Classification Layer (Phase 3)
+        self.detector = AnomalyDetector()
+        self.classifier = FailureClassifier()
 
         # Seed with initial normal tick
         self.tick()
@@ -201,16 +207,23 @@ class SimulationEngine:
 
         self._ticks_generated += 1
 
-        # Check thresholds and trigger incident if anomaly occurs and not yet triggered for this fault episode
+        # Check for anomalies using ML detector (Z-score + Isolation Forest ensemble)
+        anomaly_res = self.detector.detect(metrics)
         violation = self.check_thresholds(metrics)
-        if violation and not self._incident_triggered_for_current_fault:
-            fault_type = self._active_fault or violation["fault_type"]
-            severity = self._fault_severity or violation["severity"]
 
-            title = f"{fault_type} Anomaly Detected: {violation['metric']} breached threshold"
+        # Trigger incident if anomaly is detected by ML model or threshold breached
+        is_anomalous = anomaly_res["anomaly_detected"] or (violation is not None)
+        if is_anomalous and not self._incident_triggered_for_current_fault:
+            classification = self.classifier.classify(metrics, anomaly_res)
+            fault_type = self._active_fault or classification["category"]
+            severity = self._fault_severity or anomaly_res["severity"]
+
+            affected_str = ", ".join(anomaly_res["affected_metrics"]) if anomaly_res["affected_metrics"] else "multivariate anomaly"
+            title = f"{fault_type} Anomaly Detected: {affected_str}"
+            evidence_summary = "; ".join(classification["evidence"]) if classification["evidence"] else "statistical divergence detected"
             desc = (
-                f"Metric '{violation['metric']}' reached value {metrics.get(violation['metric'])} "
-                f"(threshold {violation['operator']} {violation['value']}) during {fault_type}."
+                f"ML Anomaly Detector identified {severity} severity condition with {anomaly_res['confidence']:.0%} confidence. "
+                f"Evidence: {evidence_summary}"
             )
 
             try:
@@ -219,13 +232,13 @@ class SimulationEngine:
                     description=desc,
                     severity=severity,
                     failure_type=fault_type,
-                    confidence=0.92,
+                    confidence=classification["confidence"],
                     metrics=metrics,
                 )
                 self._incident_triggered_for_current_fault = True
-                logger.warning("Incident automatically triggered for violation: %s", title)
+                logger.warning("Incident automatically triggered via ML detection: %s", title)
             except Exception as e:
-                logger.error("Failed to create incident on threshold breach: %s", e)
+                logger.error("Failed to create incident on anomaly detection: %s", e)
 
         return point
 
