@@ -92,6 +92,11 @@ export const api = {
       method: 'POST',
     }),
 
+  runSection29Demo: (): Promise<any> =>
+    fetchJson<any>('/api/simulation/demo', {
+      method: 'POST',
+    }),
+
   // Evaluation & Benchmark
   getBenchmark: (): Promise<BenchmarkResult> =>
     fetchJson<BenchmarkResult>('/api/evaluation/benchmark'),

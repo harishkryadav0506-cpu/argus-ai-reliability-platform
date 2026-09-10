@@ -65,3 +65,15 @@ def advance_tick():
         "point": point,
         "active_fault": simulation_engine._active_fault,
     }
+
+
+@router.post("/demo")
+def run_demo_scenario():
+    """
+    Section 29 One-Click Demonstration Scenario.
+    Runs the complete 14-step autonomous reliability scenario end-to-end against the simulation engine.
+    """
+    from app.services.demo_service import run_section_29_demo
+    result = run_section_29_demo()
+    return result
+

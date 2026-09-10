@@ -10,9 +10,13 @@ import {
   ExternalLink,
   Flame,
   Layers,
+  Play,
   Repeat,
   ShieldAlert,
   Zap,
+  CheckCircle,
+  ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { MetricSnapshot, Incident } from '../types';
@@ -25,6 +29,36 @@ export const DashboardPage: React.FC = () => {
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Section 29 14-Step One-Click Demo state
+  const [demoRunning, setDemoRunning] = useState<boolean>(false);
+  const [demoActiveStep, setDemoActiveStep] = useState<number | null>(null);
+  const [demoStepsList, setDemoStepsList] = useState<any[]>([]);
+  const [demoIncidentId, setDemoIncidentId] = useState<string | null>(null);
+  const [demoStatusMessage, setDemoStatusMessage] = useState<string | null>(null);
+
+  const handleRunSection29Demo = async () => {
+    setDemoRunning(true);
+    setDemoActiveStep(1);
+    setDemoStepsList([]);
+    setDemoIncidentId(null);
+    setDemoStatusMessage('Starting Section 29 autonomous demonstration...');
+
+    try {
+      const res = await api.runSection29Demo();
+      setDemoStepsList(res.steps || []);
+      setDemoIncidentId(res.incident_id || null);
+      setDemoActiveStep(14);
+      setDemoStatusMessage(
+        `Section 29 Demo completed successfully! Incident ${res.incident_id?.slice(0, 8)} created, diagnosed, recovered via MCP, verified, and learned.`
+      );
+      await loadData();
+    } catch (err: any) {
+      setDemoStatusMessage(`Demo encountered an error: ${err.message}`);
+    } finally {
+      setDemoRunning(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -145,16 +179,156 @@ export const DashboardPage: React.FC = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Link to="/simulation" className="btn btn-primary btn-sm">
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleRunSection29Demo}
+            disabled={demoRunning}
+            style={{
+              background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+              border: 'none',
+              boxShadow: '0 0 12px rgba(124, 58, 237, 0.4)',
+            }}
+          >
+            <Play size={14} className={demoRunning ? 'spin' : ''} />
+            {demoRunning ? 'Running Section 29 Demo...' : 'Run ARGUS Demo (Section 29)'}
+          </button>
+          <Link to="/simulation" className="btn btn-secondary btn-sm">
             <Flame size={14} />
-            Inject Test Fault
+            Inject Fault
           </Link>
           <Link to="/evaluation" className="btn btn-secondary btn-sm">
             <Activity size={14} />
-            View Benchmark
+            Benchmark
           </Link>
         </div>
       </div>
+
+      {/* Section 29 Interactive 14-Step Timeline Card */}
+      {(demoRunning || demoStepsList.length > 0) && (
+        <div
+          className="card"
+          style={{
+            marginBottom: '24px',
+            border: '1px solid var(--accent-blue)',
+            background: 'rgba(30, 58, 138, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: demoRunning ? '#eab308' : '#10b981',
+                  boxShadow: demoRunning ? '0 0 8px #eab308' : '0 0 8px #10b981',
+                }}
+              />
+              <h3 style={{ fontSize: '15px', fontWeight: 600 }}>
+                Section 29 Autonomous Demonstration: 14-Step End-to-End Reliability Lifecycle
+              </h3>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              {demoIncidentId && (
+                <Link to={`/incidents/${demoIncidentId}`} className="btn btn-primary btn-sm">
+                  Investigate Incident ({demoIncidentId.slice(0, 8)})
+                  <ChevronRight size={14} />
+                </Link>
+              )}
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setDemoStepsList([]);
+                  setDemoStatusMessage(null);
+                }}
+                disabled={demoRunning}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+
+          {demoStatusMessage && (
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              {demoStatusMessage}
+            </p>
+          )}
+
+          {/* 14 Steps Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: '10px',
+            }}
+          >
+            {[
+              { num: 1, label: '1. Healthy Baseline' },
+              { num: 2, label: '2. Inject RAG Degradation' },
+              { num: 3, label: '3. ML Anomaly Detected' },
+              { num: 4, label: '4. Incident Registered' },
+              { num: 5, label: '5. Telemetry & Logs' },
+              { num: 6, label: '6. Root Cause Diagnosed' },
+              { num: 7, label: '7. RAG Runbook Retrieved' },
+              { num: 8, label: '8. Recovery Simulated' },
+              { num: 9, label: '9. Risk Calculated' },
+              { num: 10, label: '10. Approval Requested' },
+              { num: 11, label: '11. MCP Tool Executed' },
+              { num: 12, label: '12. Telemetry Verified' },
+              { num: 13, label: '13. Recovery Evaluated' },
+              { num: 14, label: '14. Postmortem & Learned' },
+            ].map((st) => {
+              const stepData = demoStepsList.find((s) => s.step === st.num);
+              const isCompleted = Boolean(stepData);
+              const isCurrent = demoRunning && demoActiveStep === st.num;
+
+              return (
+                <div
+                  key={st.num}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: isCompleted
+                      ? 'rgba(16, 185, 129, 0.1)'
+                      : isCurrent
+                      ? 'rgba(234, 179, 8, 0.15)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: `1px solid ${
+                      isCompleted
+                        ? 'rgba(16, 185, 129, 0.3)'
+                        : isCurrent
+                        ? 'rgba(234, 179, 8, 0.5)'
+                        : 'var(--border-subtle)'
+                    }`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: isCompleted ? '#34d399' : isCurrent ? '#fbbf24' : 'var(--text-muted)',
+                      }}
+                    >
+                      {st.label}
+                    </span>
+                    {isCompleted && <CheckCircle size={14} color="#34d399" />}
+                    {isCurrent && <RefreshCw size={14} className="spin" color="#fbbf24" />}
+                  </div>
+                  {stepData?.description && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.3' }}>
+                      {stepData.description.slice(0, 85)}...
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div

@@ -223,3 +223,36 @@ def test_api_incidents_endpoints():
     assert get_resp.status_code == 200
     assert get_resp.json()["id"] == inc_id
     assert len(get_resp.json()["metrics"]) > 0
+
+
+def test_api_section_29_demo_scenario():
+    """Verifies that POST /api/simulation/demo executes all 14 steps end-to-end."""
+    resp = client.post("/api/simulation/demo")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["status"] == "success"
+    assert data["steps_count"] == 14
+    assert len(data["steps"]) == 14
+    assert "incident_id" in data
+
+    # Verify step names cover the 14 Section 29 milestones
+    step_names = [s["name"] for s in data["steps"]]
+    assert "Start Simulated Healthy System" in step_names[0]
+    assert "Inject RAG Degradation" in step_names[1]
+    assert "Detect Anomaly" in step_names[2]
+    assert "Create Incident" in step_names[3]
+    assert "Collect Metrics & Logs" in step_names[4]
+    assert "Diagnose Root Cause" in step_names[5]
+    assert "Retrieve Historical Runbooks" in step_names[6]
+    assert "Generate Recovery Strategies" in step_names[7]
+    assert "Calculate Risk" in step_names[8]
+    assert "Request Human Approval" in step_names[9]
+    assert "Execute Recovery via MCP" in step_names[10]
+    assert "Verify Recovery Telemetry" in step_names[11]
+    assert "Run Evaluation" in step_names[12]
+    assert "Generate Postmortem & Learn" in step_names[13]
+
+    # Verify final recovery state is healthy
+    assert data["restored_metrics"]["retrieval_score"] >= 0.85
+

@@ -140,43 +140,25 @@ export const SimulationPage: React.FC = () => {
     }
   };
 
+  const [demoStepsList, setDemoStepsList] = useState<any[]>([]);
+  const [demoIncidentId, setDemoIncidentId] = useState<string | null>(null);
+
   // Section 29 End-to-End Demo Runner
   const handleRunDemo = async () => {
     setDemoRunning(true);
+    setDemoStepsList([]);
+    setDemoIncidentId(null);
+    setDemoStep('Initializing Section 29 14-Step Autonomous Reliability Demonstration...');
+
     try {
-      setDemoStep('Step 1: Normal healthy baseline telemetry active...');
-      await api.resetSimulation();
-      await new Promise((r) => setTimeout(r, 2000));
-
-      setDemoStep('Step 2: Injecting RAG_DEGRADATION fault...');
-      await api.injectFault('RAG_DEGRADATION');
-      setActiveFault('RAG_DEGRADATION');
-      await new Promise((r) => setTimeout(r, 3000));
-
-      setDemoStep('Step 3: Anomaly detected! Creating incident & collecting metrics...');
-      const inc = await api.simulateIncident({
-        title: 'Demo: Vector Store Retrieval Degradation',
-        description: 'Automated Section 29 end-to-end reliability demonstration',
-        severity: 'high',
-        failure_type: 'RAG_DEGRADATION',
-        confidence: 0.95,
-      });
-
-      setDemoStep('Step 4: LangGraph agents running diagnosis & RAG runbook retrieval...');
-      await api.analyzeIncident(inc.id);
-      await new Promise((r) => setTimeout(r, 2500));
-
-      setDemoStep('Step 5: Simulating counterfactuals & requesting human approval...');
-      await new Promise((r) => setTimeout(r, 2000));
-
-      setDemoStep('Step 6: Executing safe recovery via MCP & verifying SLA metrics...');
-      await api.approveRecovery(inc.id, 'Demo Operator Auto-Approval');
-      await api.resetSimulation();
+      const res = await api.runSection29Demo();
+      setDemoStepsList(res.steps || []);
+      setDemoIncidentId(res.incident_id || null);
       setActiveFault(null);
-
-      setDemoStep('Step 7: Incident resolved! Ingested into ChromaDB experience store.');
-      await new Promise((r) => setTimeout(r, 2000));
-      setStatusMessage(`Demo complete for Incident ${inc.id.slice(0, 8)}! View on Dashboard or Incidents page.`);
+      setStatusMessage(
+        `Section 29 Demo Completed! Incident ${res.incident_id?.slice(0, 8)} executed all 14 steps: anomaly detection, root cause diagnosis, runbook retrieval, counterfactual simulation, human approval, MCP recovery, SLA verification, evaluation, and postmortem learning.`
+      );
+      await fetchMetrics();
     } catch (e: any) {
       alert(`Demo encountered error: ${e.message}`);
     } finally {
