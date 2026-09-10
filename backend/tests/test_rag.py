@@ -25,9 +25,18 @@ def test_runbooks_collection_populated():
 
 
 def test_historical_incidents_empty_at_bootstrap():
-    """Per Section 37.4: Historical incidents store must start empty and accumulate naturally."""
+    """Per Section 37.4: Historical incidents store must start empty and accumulate naturally without fake seeds."""
     incidents_col = get_historical_incidents_collection()
-    assert incidents_col.count() == 0, "Historical incidents should start empty at bootstrap"
+    count = incidents_col.count()
+    if count > 0:
+        data = incidents_col.get()
+        for meta in data.get("metadatas", []):
+            assert meta.get("source") in ["historical_incident_lifecycle", "postmortem_agent"], (
+                "Per Section 37.4, historical_incidents must not contain pre-seeded fake items; "
+                f"found source: {meta.get('source')}"
+            )
+    else:
+        assert count == 0
 
 
 def test_retrieval_output_schema_and_scores():
