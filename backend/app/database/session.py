@@ -18,7 +18,11 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+connect_args = {}
+if "postgresql" in settings.DATABASE_URL:
+    connect_args["connect_timeout"] = 1
+
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

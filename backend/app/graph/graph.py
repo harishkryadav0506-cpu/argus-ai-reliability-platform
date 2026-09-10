@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from app.graph.state import ArgusState
 from app.agents.detection_agent import detection_agent
 from app.agents.diagnosis_agent import diagnosis_agent
-from app.agents.recovery_agent import recovery_agent
+from app.agents.recovery_agent import recovery_agent, execute_recovery_action
 from app.agents.evaluation_agent import evaluation_agent
 from app.agents.postmortem_agent import postmortem_agent
 from app.rag.retriever import retrieve
@@ -76,23 +76,28 @@ def node_human_approval(state: ArgusState) -> Dict[str, Any]:
 
 def node_execution(state: ArgusState) -> Dict[str, Any]:
     """
-    Executes the selected recovery strategy (wired to MCP action tools in Phase 6).
+    Executes the selected recovery strategy via MCP Action Tools (Phase 6).
     """
     strategy = state.get("selected_strategy", {})
     action = strategy.get("action", "unknown_action")
     params = strategy.get("parameters", {})
     history = list(state.get("history_trace", []))
-    history.append(f"ExecutionNode: executing recovery action '{action}'")
+    history.append(f"ExecutionNode: executing recovery action '{action}' via MCP")
+
+    incident = state.get("incident", {})
+    inc_id = incident.get("id") if isinstance(incident, dict) else getattr(incident, "id", None)
+    approval_status = state.get("approval_status", "not_required")
+
+    exec_result = execute_recovery_action(
+        strategy=strategy,
+        approval_status=approval_status,
+        incident_id=inc_id,
+    )
 
     logs = list(state.get("logs", []))
-    logs.append(f"[Execution] Executed recovery action '{action}' with params: {params}")
-
-    exec_result = {
-        "status": "success",
-        "action": action,
-        "applied_parameters": params,
-        "message": f"Successfully applied {action}.",
-    }
+    status_str = exec_result.get("status", "unknown")
+    msg_str = exec_result.get("message", exec_result.get("error", "Executed"))
+    logs.append(f"[Execution via MCP] Action '{action}': Status={status_str} | Result={msg_str}")
 
     return {
         "execution_result": exec_result,

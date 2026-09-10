@@ -136,3 +136,49 @@ def get_incident(incident_id: str, db: Optional[Session] = None) -> Optional[Inc
             if inc.id == incident_id:
                 return inc
         return None
+
+
+def update_incident(
+    incident_id: str,
+    status: Optional[str] = None,
+    resolution_notes: Optional[str] = None,
+    db: Optional[Session] = None,
+) -> Optional[Incident]:
+    """
+    Updates status and details of an existing incident.
+    """
+    now = _now()
+
+    def _update_fields(inc: Incident):
+        if status:
+            inc.status = status
+            if status.lower() == "resolved" and not inc.resolved_at:
+                inc.resolved_at = now
+        if resolution_notes:
+            inc.description = f"{inc.description}\nResolution: {resolution_notes}".strip()
+
+    try:
+        if db is not None:
+            stmt = select(Incident).where(Incident.id == incident_id)
+            inc = db.scalars(stmt).first()
+            if inc:
+                _update_fields(inc)
+                db.commit()
+                return inc
+        else:
+            with db_session() as session:
+                stmt = select(Incident).where(Incident.id == incident_id)
+                inc = session.scalars(stmt).first()
+                if inc:
+                    _update_fields(inc)
+                    session.commit()
+                    return inc
+    except Exception as e:
+        logger.warning("Database unavailable during update_incident (%s); updating in-memory.", e)
+
+    # In-memory update
+    for inc in _IN_MEMORY_INCIDENTS:
+        if inc.id == incident_id:
+            _update_fields(inc)
+            return inc
+    return None

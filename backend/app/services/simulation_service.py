@@ -291,3 +291,7 @@ class SimulationEngine:
 
 # Global singleton simulation engine
 simulation_engine = SimulationEngine()
+
+
+def get_simulation_engine() -> SimulationEngine:
+    return simulation_engine
