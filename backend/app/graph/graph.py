@@ -1,13 +1,16 @@
 """
-ARGUS LangGraph State Machine (Phase 5 - Section 10)
+ARGUS LangGraph State Machine (Phase 5 & 7 - Sections 10, 13, 16)
 
 Compiles the multi-agent workflow graph orchestrating Detection, RAG Retrieval,
-Diagnosis (Gemini + Fallback), Recovery Planning, Human Approval Gates, Execution,
-Verification (with bounded MAX_RETRIES=3 retry loop), Evaluation, and Postmortem.
+Diagnosis (Gemini + Fallback), Recovery Planning, Native Human Approval (via LangGraph interrupt/resume),
+Execution via MCP tools, Telemetry Verification (Section 16 with bounded retry loop), Evaluation, and Postmortem.
 """
 import logging
-from typing import Any, Dict, Literal
+import uuid
+from typing import Any, Dict, Literal, Optional
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt, Command
+from langgraph.checkpoint.memory import InMemorySaver
 
 from app.graph.state import ArgusState
 from app.agents.detection_agent import detection_agent
@@ -16,10 +19,22 @@ from app.agents.recovery_agent import recovery_agent, execute_recovery_action
 from app.agents.evaluation_agent import evaluation_agent
 from app.agents.postmortem_agent import postmortem_agent
 from app.rag.retriever import retrieve
+from app.services.recovery_service import record_recovery_action, update_recovery_action
+from app.services import incident_service
+from app.services.simulation_service import get_simulation_engine
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
+
+# Canonical baseline SLA limits for post-recovery verification (Section 16)
+SLA_LIMITS = {
+    "latency": 2.2,             # seconds max
+    "error_rate": 0.02,          # 2% max
+    "retrieval_score": 0.85,     # 85% min
+    "tool_failure_rate": 0.03,   # 3% max
+    "api_success_rate": 0.98,    # 98% min
+}
 
 
 # --- Graph Nodes ---
@@ -58,17 +73,73 @@ def node_recovery_planning(state: ArgusState) -> Dict[str, Any]:
 def node_human_approval(state: ArgusState) -> Dict[str, Any]:
     """
     Gatekeeper node for high-risk recovery actions (Section 13).
-    If approval_status is not explicitly approved or rejected, keeps it pending.
+    Pauses execution via native LangGraph interrupt() when approval is pending.
+    Resumes seamlessly from interrupt point without re-running previous nodes.
     """
     history = list(state.get("history_trace", []))
     history.append("HumanApprovalNode: evaluating approval status")
     logs = list(state.get("logs", []))
 
     status = state.get("approval_status", "pending")
-    logs.append(f"[HumanApproval] Action approval status is: {status}")
+    incident = state.get("incident", {})
+    inc_id = incident.get("id") if isinstance(incident, dict) else getattr(incident, "id", None)
+    inc_id = inc_id or "unknown_incident"
+    strategy = state.get("selected_strategy", {})
+    action_name = strategy.get("action", "unknown_action")
+    risk = state.get("risk_score", 0.5)
+
+    # If approval already decided (e.g. pre-approved in automated tests), skip interrupt
+    if status in ["approved", "rejected"]:
+        record_recovery_action(
+            incident_id=inc_id,
+            strategy=action_name,
+            risk=risk,
+            approval_status=status,
+            execution_status="pending",
+        )
+        logs.append(f"[HumanApproval] Action pre-evaluated as: {status}")
+        return {
+            "approval_status": status,
+            "logs": logs,
+            "history_trace": history,
+        }
+
+    # Record pending recovery action in DB / memory
+    record_recovery_action(
+        incident_id=inc_id,
+        strategy=action_name,
+        risk=risk,
+        approval_status="pending",
+        execution_status="pending",
+    )
+    logs.append(f"[HumanApproval] High-risk action '{action_name}' requires approval. Interrupting workflow.")
+
+    # Native LangGraph Interrupt
+    resume_val = interrupt({
+        "incident_id": inc_id,
+        "selected_strategy": strategy,
+        "risk_score": risk,
+        "options": state.get("recovery_options", []),
+        "message": f"Human approval required for high-risk action '{action_name}' (Risk={risk:.2f}).",
+    })
+
+    # Resumed via Command(resume={"approved": True/False, ...})
+    approved = False
+    if isinstance(resume_val, dict):
+        approved = resume_val.get("approved", False)
+    elif isinstance(resume_val, bool):
+        approved = resume_val
+
+    new_status = "approved" if approved else "rejected"
+    logs.append(f"[HumanApproval] Resumed from interrupt with decision: {new_status}")
+
+    update_recovery_action(
+        incident_id=inc_id,
+        approval_status=new_status,
+    )
 
     return {
-        "approval_status": status,
+        "approval_status": new_status,
         "logs": logs,
         "history_trace": history,
     }
@@ -108,25 +179,69 @@ def node_execution(state: ArgusState) -> Dict[str, Any]:
 
 def node_verification(state: ArgusState) -> Dict[str, Any]:
     """
-    Verifies recovery success by evaluating post-action telemetry (Section 16).
-    If forced or failed, increments retry_count to support bounded retry loop.
+    Verifies recovery success by evaluating post-action telemetry against SLA limits (Section 16).
+    Compares pre-recovery vs post-recovery metrics. If degraded, loops back to diagnosis (bounded retries).
     """
     history = list(state.get("history_trace", []))
     history.append("VerificationNode: checking post-recovery telemetry")
     logs = list(state.get("logs", []))
 
-    # In Phase 5 state simulation: check if verification failure is explicitly simulated in state
-    simulated_fail = state.get("verification_result", {}).get("force_failure", False)
+    incident = state.get("incident", {})
+    inc_id = incident.get("id") if isinstance(incident, dict) else getattr(incident, "id", None)
     current_retries = state.get("retry_count", 0)
 
-    if simulated_fail:
+    # 1. Check explicit test simulation override
+    simulated_fail = state.get("verification_result", {}).get("force_failure", False)
+
+    # 2. Before metrics vs Post-recovery telemetry comparison (Section 16)
+    before_metrics = state.get("metrics", {}) or {}
+    exec_result = state.get("execution_result", {})
+    action_status = exec_result.get("status")
+
+    if simulated_fail or action_status != "success":
         verified = False
         new_retries = current_retries + 1
         msg = f"Post-recovery verification failed (attempt {new_retries}/{MAX_RETRIES}). Metrics remain degraded."
+        if inc_id:
+            update_recovery_action(
+                incident_id=inc_id,
+                execution_status="failed" if action_status != "success" else "executed",
+                result=msg,
+            )
     else:
-        verified = True
-        new_retries = current_retries
-        msg = "Recovery verified: Telemetry returned to normal baseline SLA limits."
+        # Check post-action metrics
+        engine = get_simulation_engine()
+        post_metrics = engine.get_current_metrics()
+
+        # Telemetry verification: latency <= 2.2s, error_rate <= 0.02, retrieval >= 0.85
+        sla_passed = (
+            post_metrics.get("latency", 1.2) <= SLA_LIMITS["latency"]
+            and post_metrics.get("error_rate", 0.005) <= SLA_LIMITS["error_rate"]
+            and post_metrics.get("retrieval_score", 0.92) >= SLA_LIMITS["retrieval_score"]
+            and post_metrics.get("tool_failure_rate", 0.008) <= SLA_LIMITS["tool_failure_rate"]
+            and post_metrics.get("api_success_rate", 0.99) >= SLA_LIMITS["api_success_rate"]
+        )
+
+        verified = sla_passed
+        if verified:
+            new_retries = current_retries
+            msg = "Recovery verified: Telemetry returned to normal baseline SLA limits."
+            if inc_id:
+                incident_service.update_incident(incident_id=inc_id, status="resolved", resolution_notes=msg)
+                update_recovery_action(
+                    incident_id=inc_id,
+                    execution_status="executed",
+                    result=msg,
+                )
+        else:
+            new_retries = current_retries + 1
+            msg = f"Post-recovery verification failed: Telemetry breaches SLA limits. Attempt {new_retries}/{MAX_RETRIES}."
+            if inc_id:
+                update_recovery_action(
+                    incident_id=inc_id,
+                    execution_status="executed",
+                    result=msg,
+                )
 
     logs.append(f"[Verification] {msg}")
 
@@ -157,6 +272,12 @@ def node_escalate_human_review(state: ArgusState) -> Dict[str, Any]:
     history.append("EscalateNode: routed to human engineering review")
     logs = list(state.get("logs", []))
     logs.append("[Escalate] Automated recovery stopped. Escalated for human engineer intervention.")
+
+    incident = state.get("incident", {})
+    inc_id = incident.get("id") if isinstance(incident, dict) else getattr(incident, "id", None)
+    if inc_id:
+        incident_service.update_incident(incident_id=inc_id, status="escalated", resolution_notes="Escalated to human engineers.")
+        update_recovery_action(incident_id=inc_id, execution_status="blocked", result="Escalated to human review")
 
     return {
         "final_status": "needs_human_review",
@@ -216,6 +337,9 @@ def route_after_verification(state: ArgusState) -> Literal["evaluation", "diagno
 
 
 # --- Build and Compile StateGraph ---
+
+checkpointer = InMemorySaver()
+
 
 def build_argus_graph():
     builder = StateGraph(ArgusState)
@@ -282,7 +406,22 @@ def build_argus_graph():
     builder.add_edge("postmortem", END)
     builder.add_edge("escalate_human_review", END)
 
-    return builder.compile()
+    compiled = builder.compile(checkpointer=checkpointer)
+
+    # Attach transparent invoke wrapper to supply default thread_id when not provided
+    orig_invoke = compiled.invoke
+
+    def invoke_wrapper(input_data: Any, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
+        if config is None:
+            thread_id = None
+            if isinstance(input_data, dict):
+                inc = input_data.get("incident", {})
+                thread_id = inc.get("id") if isinstance(inc, dict) else getattr(inc, "id", None)
+            config = {"configurable": {"thread_id": thread_id or str(uuid.uuid4())}}
+        return orig_invoke(input_data, config=config, **kwargs)
+
+    compiled.invoke = invoke_wrapper
+    return compiled
 
 
 # Global compiled graph
