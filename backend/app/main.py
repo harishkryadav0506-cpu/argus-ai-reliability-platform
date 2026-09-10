@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.logging_config import configure_logging
 from app.api.routes import health, simulation, metrics, incidents, evaluation
 from app.services.simulation_service import simulation_engine
+from app.middleware.rate_limit import RateLimitMiddleware
 
 settings = get_settings()
 configure_logging(settings.LOG_LEVEL)
@@ -45,6 +46,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware, requests_per_minute=240)
 
 app.include_router(health.router, tags=["health"])
 app.include_router(simulation.router, prefix="/api")

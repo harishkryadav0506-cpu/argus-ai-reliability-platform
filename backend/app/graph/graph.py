@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.memory import InMemorySaver
 
+import time
 from app.graph.state import ArgusState
 from app.agents.detection_agent import detection_agent
 from app.agents.diagnosis_agent import diagnosis_agent
@@ -23,6 +24,7 @@ from app.services.recovery_service import record_recovery_action, update_recover
 from app.services import incident_service
 from app.services.simulation_service import get_simulation_engine
 from app.config import get_settings
+from app.logging_config import log_structured_event
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +40,33 @@ SLA_LIMITS = {
 }
 
 
+def _get_inc_id(state: ArgusState) -> Optional[str]:
+    incident = state.get("incident", {})
+    if isinstance(incident, dict):
+        return incident.get("id")
+    return getattr(incident, "id", None)
+
+
 # --- Graph Nodes ---
 
 def node_detection(state: ArgusState) -> Dict[str, Any]:
-    return detection_agent(state)
+    t0 = time.time()
+    res = detection_agent(state)
+    inc_id = _get_inc_id(state)
+    log_structured_event(
+        logger,
+        f"DetectionAgent completed anomaly analysis: {res.get('failure_type')}",
+        agent="DetectionAgent",
+        action="detect_anomaly",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+    return res
 
 
 def node_retrieval(state: ArgusState) -> Dict[str, Any]:
+    t0 = time.time()
     failure_type = state.get("failure_type", "UNKNOWN")
     evidence = state.get("evidence", [])
     history = list(state.get("history_trace", []))
@@ -56,6 +78,17 @@ def node_retrieval(state: ArgusState) -> Dict[str, Any]:
     logs = list(state.get("logs", []))
     logs.append(f"[RAG] Retrieved {len(runbooks)} runbooks for query: '{query}'")
 
+    inc_id = _get_inc_id(state)
+    log_structured_event(
+        logger,
+        f"RAGRetrieval fetched {len(runbooks)} runbooks for '{query}'",
+        agent="RAGRetrieval",
+        action="retrieve_runbooks",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+
     return {
         "retrieved_runbooks": runbooks,
         "logs": logs,
@@ -64,11 +97,36 @@ def node_retrieval(state: ArgusState) -> Dict[str, Any]:
 
 
 def node_diagnosis(state: ArgusState) -> Dict[str, Any]:
-    return diagnosis_agent(state)
+    t0 = time.time()
+    res = diagnosis_agent(state)
+    inc_id = _get_inc_id(state)
+    log_structured_event(
+        logger,
+        f"DiagnosisAgent identified root cause: {res.get('root_cause', '')[:80]}",
+        agent="DiagnosisAgent",
+        action="diagnose_root_cause",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+    return res
 
 
 def node_recovery_planning(state: ArgusState) -> Dict[str, Any]:
-    return recovery_agent(state)
+    t0 = time.time()
+    res = recovery_agent(state)
+    inc_id = _get_inc_id(state)
+    selected_act = res.get("selected_strategy", {}).get("action", "none")
+    log_structured_event(
+        logger,
+        f"RecoveryAgent evaluated options; selected: {selected_act}",
+        agent="RecoveryAgent",
+        action="plan_recovery",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+    return res
 
 
 def node_human_approval(state: ArgusState) -> Dict[str, Any]:
@@ -150,6 +208,7 @@ def node_execution(state: ArgusState) -> Dict[str, Any]:
     """
     Executes the selected recovery strategy via MCP Action Tools (Phase 6).
     """
+    t0 = time.time()
     strategy = state.get("selected_strategy", {})
     action = strategy.get("action", "unknown_action")
     params = strategy.get("parameters", {})
@@ -171,6 +230,16 @@ def node_execution(state: ArgusState) -> Dict[str, Any]:
     msg_str = exec_result.get("message", exec_result.get("error", "Executed"))
     logs.append(f"[Execution via MCP] Action '{action}': Status={status_str} | Result={msg_str}")
 
+    log_structured_event(
+        logger,
+        f"MCP execution completed for action '{action}': {status_str}",
+        agent="ExecutionNode",
+        action=action,
+        status=status_str,
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+
     return {
         "execution_result": exec_result,
         "logs": logs,
@@ -183,6 +252,7 @@ def node_verification(state: ArgusState) -> Dict[str, Any]:
     Verifies recovery success by evaluating post-action telemetry against SLA limits (Section 16).
     Compares pre-recovery vs post-recovery metrics. If degraded, loops back to diagnosis (bounded retries).
     """
+    t0 = time.time()
     history = list(state.get("history_trace", []))
     history.append("VerificationNode: checking post-recovery telemetry")
     logs = list(state.get("logs", []))
@@ -252,6 +322,16 @@ def node_verification(state: ArgusState) -> Dict[str, Any]:
         "details": msg,
     }
 
+    log_structured_event(
+        logger,
+        f"VerificationNode SLA check outcome: {verified}",
+        agent="VerificationNode",
+        action="verify_recovery",
+        status="pass" if verified else "fail",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+
     return {
         "verification_result": verification_result,
         "retry_count": new_retries,
@@ -261,14 +341,39 @@ def node_verification(state: ArgusState) -> Dict[str, Any]:
 
 
 def node_evaluation(state: ArgusState) -> Dict[str, Any]:
-    return evaluation_agent(state)
+    t0 = time.time()
+    res = evaluation_agent(state)
+    inc_id = _get_inc_id(state)
+    log_structured_event(
+        logger,
+        "EvaluationAgent scored incident resolution",
+        agent="EvaluationAgent",
+        action="evaluate_resolution",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+    return res
 
 
 def node_postmortem(state: ArgusState) -> Dict[str, Any]:
-    return postmortem_agent(state)
+    t0 = time.time()
+    res = postmortem_agent(state)
+    inc_id = _get_inc_id(state)
+    log_structured_event(
+        logger,
+        "PostmortemAgent generated postmortem and auto-ingested into vector DB",
+        agent="PostmortemAgent",
+        action="generate_postmortem",
+        status="success",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
+    return res
 
 
 def node_escalate_human_review(state: ArgusState) -> Dict[str, Any]:
+    t0 = time.time()
     history = list(state.get("history_trace", []))
     history.append("EscalateNode: routed to human engineering review")
     logs = list(state.get("logs", []))
@@ -279,6 +384,16 @@ def node_escalate_human_review(state: ArgusState) -> Dict[str, Any]:
     if inc_id:
         incident_service.update_incident(incident_id=inc_id, status="escalated", resolution_notes="Escalated to human engineers.")
         update_recovery_action(incident_id=inc_id, execution_status="blocked", result="Escalated to human review")
+
+    log_structured_event(
+        logger,
+        "Incident escalated for human engineer intervention",
+        agent="EscalateNode",
+        action="escalate_human_review",
+        status="escalated",
+        incident_id=inc_id,
+        duration=time.time() - t0,
+    )
 
     return {
         "final_status": "needs_human_review",

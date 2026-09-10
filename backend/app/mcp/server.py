@@ -7,9 +7,11 @@ Provides unified discovery and execution for all Model Context Protocol (MCP) to
 """
 import inspect
 import logging
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from app.mcp import metrics_tools, logs_tools, deployment_tools, incident_tools
+from app.logging_config import log_structured_event
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +296,7 @@ class MCPServer:
                 "error": f"Tool '{name}' not found. Available tools: {list(self._tools.keys())}",
             }
 
+        t0 = time.time()
         try:
             # Check function signature and pass supported arguments
             sig = inspect.signature(tool_def.func)
@@ -308,9 +311,32 @@ class MCPServer:
             if "raise_on_blocked" in sig.parameters:
                 kwargs["raise_on_blocked"] = False
 
-            return tool_def.func(**kwargs)
+            result = tool_def.func(**kwargs)
+            duration = time.time() - t0
+            inc_id = arguments.get("incident_id")
+            log_structured_event(
+                logger,
+                f"MCP tool '{name}' executed successfully",
+                agent="mcp_server",
+                action=name,
+                status="success",
+                incident_id=inc_id,
+                duration=duration,
+            )
+            return result
         except PermissionError as pe:
-            logger.warning("MCP call_tool blocked for '%s': %s", name, pe)
+            duration = time.time() - t0
+            inc_id = arguments.get("incident_id")
+            log_structured_event(
+                logger,
+                f"MCP tool '{name}' execution blocked by policy: {pe}",
+                agent="mcp_server",
+                action=name,
+                status="blocked",
+                incident_id=inc_id,
+                duration=duration,
+                level=logging.WARNING,
+            )
             return {
                 "tool": name,
                 "type": tool_def.tool_type,
@@ -319,7 +345,18 @@ class MCPServer:
                 "error": str(pe),
             }
         except Exception as exc:
-            logger.error("Error executing MCP tool '%s': %s", name, exc)
+            duration = time.time() - t0
+            inc_id = arguments.get("incident_id")
+            log_structured_event(
+                logger,
+                f"Error executing MCP tool '{name}': {exc}",
+                agent="mcp_server",
+                action=name,
+                status="error",
+                incident_id=inc_id,
+                duration=duration,
+                level=logging.ERROR,
+            )
             return {
                 "tool": name,
                 "type": tool_def.tool_type,

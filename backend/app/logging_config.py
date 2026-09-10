@@ -35,3 +35,35 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
+
+
+def log_structured_event(
+    logger: logging.Logger,
+    message: str,
+    agent: str,
+    action: str,
+    status: str = "success",
+    incident_id: str = None,
+    duration: float = None,
+    request_id: str = None,
+    level: int = logging.INFO,
+    **kwargs,
+) -> None:
+    """
+    Standardized structured logging helper per Section 25.
+    """
+    extra = {
+        "agent": agent,
+        "action": action,
+        "status": status,
+    }
+    if incident_id:
+        extra["incident_id"] = incident_id
+    if duration is not None:
+        extra["duration"] = round(duration, 4)
+    if request_id:
+        extra["request_id"] = request_id
+    extra.update(kwargs)
+
+    logger.log(level, message, extra=extra)
+
