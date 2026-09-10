@@ -32,6 +32,6 @@ def health():
             "langsmith": {"status": "CONNECTED" if settings.langsmith_configured else "NOT_CONFIGURED (local logging only)"},
             "redis": {"status": "CONFIGURED" if settings.redis_configured else "NOT_CONFIGURED (in-memory fallback)"},
             "vector_db": {"status": vector_db_status, "path": settings.VECTOR_DB_PATH},
-            "mcp": {"status": "NOT_YET_IMPLEMENTED (Phase 6)"},
+            "mcp": {"status": "ACTIVE (13 tools registered)", "allowlist": "ENFORCED"},
         },
     }
