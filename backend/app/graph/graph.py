@@ -22,6 +22,7 @@ from app.rag.retriever import retrieve
 from app.services.recovery_service import record_recovery_action, update_recovery_action
 from app.services import incident_service
 from app.services.simulation_service import get_simulation_engine
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -412,12 +413,42 @@ def build_argus_graph():
     orig_invoke = compiled.invoke
 
     def invoke_wrapper(input_data: Any, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
+        settings = get_settings()
         if config is None:
+            config = {}
+        if "configurable" not in config:
+            config["configurable"] = {}
+        if "thread_id" not in config["configurable"]:
             thread_id = None
             if isinstance(input_data, dict):
                 inc = input_data.get("incident", {})
                 thread_id = inc.get("id") if isinstance(inc, dict) else getattr(inc, "id", None)
-            config = {"configurable": {"thread_id": thread_id or str(uuid.uuid4())}}
+            config["configurable"]["thread_id"] = thread_id or str(uuid.uuid4())
+
+        # Section 17 & 32: Attach metadata if LangSmith is configured
+        if settings.langsmith_configured:
+            inc_id = "unknown"
+            f_type = "UNKNOWN"
+            sev = "unknown"
+            strat = "unknown"
+            if isinstance(input_data, dict):
+                inc = input_data.get("incident", {})
+                inc_id = inc.get("id", "unknown") if isinstance(inc, dict) else getattr(inc, "id", "unknown")
+                f_type = input_data.get("failure_type", "UNKNOWN")
+                sev = inc.get("severity", "unknown") if isinstance(inc, dict) else getattr(inc, "severity", "unknown")
+                selected_strat = input_data.get("selected_strategy")
+                if isinstance(selected_strat, dict):
+                    strat = selected_strat.get("action", selected_strat.get("name", "unknown"))
+
+            meta = dict(config.get("metadata", {}))
+            meta.setdefault("incident_id", inc_id)
+            meta.setdefault("failure_type", f_type)
+            meta.setdefault("severity", sev)
+            meta.setdefault("environment", settings.ARGUS_ENV)
+            meta.setdefault("agent_name", "argus_graph")
+            meta.setdefault("recovery_strategy", strat)
+            config["metadata"] = meta
+
         return orig_invoke(input_data, config=config, **kwargs)
 
     compiled.invoke = invoke_wrapper

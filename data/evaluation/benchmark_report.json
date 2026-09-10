@@ -1,0 +1,42 @@
+{
+  "benchmark_id": "bench_11b1c96a",
+  "executed_at": "2026-09-10 04:39:54 UTC",
+  "total_scenarios": 15,
+  "v1_baseline": {
+    "version_name": "v1_baseline",
+    "detection_accuracy": 0.8,
+    "detection_precision": 1.0,
+    "detection_recall": 0.75,
+    "detection_f1": 0.8571,
+    "diagnosis_accuracy": 0.4667,
+    "rag_retrieval_score": 0.0,
+    "recovery_success_rate": 0.3333,
+    "unsafe_action_rate": 0.3333,
+    "mean_recovery_time_sec": 221.67,
+    "average_latency_sec": 4.783
+  },
+  "v2_argus": {
+    "version_name": "v2_argus",
+    "detection_accuracy": 0.9333,
+    "detection_precision": 0.9231,
+    "detection_recall": 1.0,
+    "detection_f1": 0.96,
+    "diagnosis_accuracy": 0.9333,
+    "rag_retrieval_score": 0.583,
+    "recovery_success_rate": 1.0,
+    "unsafe_action_rate": 0.0,
+    "mean_recovery_time_sec": 42.0,
+    "average_latency_sec": 4.783
+  },
+  "deltas": {
+    "detection_f1": 0.1029,
+    "detection_accuracy": 0.1333,
+    "detection_recall": 0.25,
+    "diagnosis_accuracy": 0.4666,
+    "rag_retrieval_score": 0.583,
+    "recovery_success_rate": 0.6667,
+    "unsafe_action_rate": -0.3333,
+    "mean_recovery_time_sec": -179.67,
+    "average_latency_sec": 0.0
+  }
+}

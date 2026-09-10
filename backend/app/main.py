@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.logging_config import configure_logging
-from app.api.routes import health, simulation, metrics, incidents
+from app.api.routes import health, simulation, metrics, incidents, evaluation
 from app.services.simulation_service import simulation_engine
 
 settings = get_settings()
@@ -50,6 +50,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(simulation.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
+app.include_router(evaluation.router, prefix="/api")
 
 
 @app.get("/")

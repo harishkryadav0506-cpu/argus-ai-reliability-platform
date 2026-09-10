@@ -56,7 +56,22 @@ class Settings(BaseSettings):
     def redis_configured(self) -> bool:
         return bool(self.REDIS_URL)
 
+    def configure_tracing(self) -> None:
+        """
+        Configures LangChain/LangSmith environment variables per Section 17 & 32.
+        When langsmith_configured is False, tracing is disabled gracefully so local logging continues.
+        """
+        import os
+        if self.langsmith_configured:
+            os.environ["LANGCHAIN_TRACING_V2"] = "true"
+            os.environ["LANGCHAIN_API_KEY"] = self.LANGSMITH_API_KEY or ""
+            os.environ["LANGCHAIN_PROJECT"] = self.LANGSMITH_PROJECT
+        else:
+            os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    s.configure_tracing()
+    return s

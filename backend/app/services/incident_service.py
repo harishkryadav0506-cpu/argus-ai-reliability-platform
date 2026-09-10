@@ -182,3 +182,14 @@ def update_incident(
             _update_fields(inc)
             return inc
     return None
+
+
+def resolve_incident(
+    incident_id: str,
+    resolution_notes: Optional[str] = None,
+    db: Optional[Session] = None,
+) -> Optional[Incident]:
+    """
+    Convenience function to transition an incident to resolved status.
+    """
+    return update_incident(incident_id=incident_id, status="resolved", resolution_notes=resolution_notes, db=db)
