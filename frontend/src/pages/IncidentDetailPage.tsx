@@ -177,7 +177,7 @@ export const IncidentDetailPage: React.FC = () => {
             Detected At: <span className="mono" style={{ color: 'var(--text-primary)' }}>{new Date(incident.created_at).toLocaleString()}</span>
           </div>
           <div>
-            Confidence Score: <span className="mono" style={{ color: '#10b981', fontWeight: 600 }}>{((incident.confidence || 0.92) * 100).toFixed(0)}%</span>
+            Confidence Score: <span className="mono" style={{ color: '#10b981', fontWeight: 600 }}>{(((incident.confidence ?? 0.92)) * 100).toFixed(0)}%</span>
           </div>
           {incident.resolved_at && (
             <div>
@@ -302,7 +302,7 @@ export const IncidentDetailPage: React.FC = () => {
                   <ul style={{ paddingLeft: '18px', color: 'var(--text-secondary)' }}>
                     {(diagnosis?.evidence || [
                       `Telemetry breach matching ${incident.failure_type}`,
-                      `Ensemble confidence score: ${((incident.confidence || 0.92) * 100).toFixed(1)}%`,
+                      `Ensemble confidence score: ${(((incident.confidence ?? 0.92)) * 100).toFixed(1)}%`,
                     ]).map((ev, i) => (
                       <li key={i} className="mono" style={{ fontSize: '12px', marginBottom: '4px' }}>
                         {ev}
@@ -325,13 +325,13 @@ export const IncidentDetailPage: React.FC = () => {
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Detection Accuracy</div>
                   <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>
-                    {((evaluation?.scores?.detection_accuracy || 0.96) * 100).toFixed(1)}%
+                    {(((evaluation?.scores?.detection_accuracy ?? 0.96)) * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Diagnosis Groundedness</div>
                   <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
-                    {((evaluation?.scores?.diagnosis_groundedness || 0.94) * 100).toFixed(1)}%
+                    {(((evaluation?.scores?.diagnosis_groundedness ?? 0.94)) * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
@@ -385,7 +385,7 @@ export const IncidentDetailPage: React.FC = () => {
                             {m.metric_name}
                           </td>
                           <td className="mono" style={{ fontWeight: 600 }}>
-                            {typeof m.value === 'number' ? m.value.toFixed(3) : m.value}
+                            {typeof m.value === 'number' ? (isNaN(m.value) ? '0.000' : m.value.toFixed(3)) : (m.value ?? '—')}
                           </td>
                           <td>
                             <span className={`badge ${isBreach ? 'badge-critical' : 'badge-low'}`}>
@@ -558,14 +558,14 @@ export const IncidentDetailPage: React.FC = () => {
                             >
                               <div
                                 style={{
-                                  width: `${(strat.recovery_probability * 100).toFixed(0)}%`,
+                                  width: `${(((strat.recovery_probability ?? 0)) * 100).toFixed(0)}%`,
                                   height: '100%',
-                                  background: strat.recovery_probability > 0.85 ? '#10b981' : '#f59e0b',
+                                  background: (strat.recovery_probability ?? 0) > 0.85 ? '#10b981' : '#f59e0b',
                                 }}
                               ></div>
                             </div>
                             <span className="mono" style={{ fontWeight: 600 }}>
-                              {(strat.recovery_probability * 100).toFixed(0)}%
+                              {(((strat.recovery_probability ?? 0)) * 100).toFixed(0)}%
                             </span>
                           </div>
                         </td>
@@ -616,7 +616,7 @@ export const IncidentDetailPage: React.FC = () => {
                     <span style={{ fontWeight: 600, fontSize: '13px' }}>{cite.chunk}</span>
                   </div>
                   <div className="mono" style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>
-                    Relevance: {(cite.relevance_score * 100).toFixed(1)}%
+                    Relevance: {(((cite.relevance_score ?? 0)) * 100).toFixed(1)}%
                   </div>
                 </div>
 

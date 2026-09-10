@@ -43,7 +43,7 @@ export const EvaluationPage: React.FC = () => {
     try {
       await api.runBenchmark();
       await fetchBenchmark();
-      setEvalSuccessMsg('Benchmark suite completed successfully against 15 simulated scenarios.');
+      setEvalSuccessMsg(`Benchmark suite completed successfully against ${benchmark?.total_scenarios || 22} simulated scenarios.`);
     } catch (e: any) {
       alert(`Evaluation failed: ${e.message}`);
     } finally {
@@ -52,27 +52,27 @@ export const EvaluationPage: React.FC = () => {
   };
 
   const v1 = benchmark?.v1_baseline || {
-    detection_f1: 0.8571,
-    detection_accuracy: 0.80,
-    detection_recall: 0.75,
-    diagnosis_accuracy: 0.4667,
+    detection_f1: 0.8750,
+    detection_accuracy: 0.8182,
+    detection_recall: 0.7778,
+    diagnosis_accuracy: 0.4545,
     rag_retrieval_score: 0.0,
-    recovery_success_rate: 0.3333,
+    recovery_success_rate: 0.1667,
     unsafe_action_rate: 0.3333,
-    mean_recovery_time_sec: 221.7,
-    average_latency: 4.78,
+    mean_recovery_time_sec: 230.8,
+    average_latency: 4.84,
   };
 
   const v2 = benchmark?.v2_argus || {
-    detection_f1: 0.9600,
-    detection_accuracy: 0.9333,
+    detection_f1: 0.9730,
+    detection_accuracy: 0.9545,
     detection_recall: 1.00,
-    diagnosis_accuracy: 0.9333,
-    rag_retrieval_score: 0.5830,
+    diagnosis_accuracy: 1.00,
+    rag_retrieval_score: 0.5846,
     recovery_success_rate: 1.00,
     unsafe_action_rate: 0.0,
     mean_recovery_time_sec: 42.0,
-    average_latency: 4.78,
+    average_latency: 4.84,
   };
 
   // Metric Comparison Chart Item
@@ -83,14 +83,16 @@ export const EvaluationPage: React.FC = () => {
     isPercentage = false,
     invert = false // true if lower is better (e.g. MTTR or unsafe action)
   ) => {
-    const v1Display = isPercentage ? `${(v1Val * 100).toFixed(1)}%` : v1Val.toFixed(3);
-    const v2Display = isPercentage ? `${(v2Val * 100).toFixed(1)}%` : v2Val.toFixed(3);
-    const delta = v2Val - v1Val;
+    const v1Num = Number(v1Val ?? 0);
+    const v2Num = Number(v2Val ?? 0);
+    const v1Display = isPercentage ? `${(v1Num * 100).toFixed(1)}%` : v1Num.toFixed(3);
+    const v2Display = isPercentage ? `${(v2Num * 100).toFixed(1)}%` : v2Num.toFixed(3);
+    const delta = v2Num - v1Num;
     const isImproved = invert ? delta < 0 : delta > 0;
 
-    const maxScale = Math.max(v1Val, v2Val, 1.0);
-    const v1Width = `${Math.min((v1Val / maxScale) * 100, 100).toFixed(0)}%`;
-    const v2Width = `${Math.min((v2Val / maxScale) * 100, 100).toFixed(0)}%`;
+    const maxScale = Math.max(v1Num, v2Num, 1.0);
+    const v1Width = `${Math.min((v1Num / maxScale) * 100, 100).toFixed(0)}%`;
+    const v2Width = `${Math.min((v2Num / maxScale) * 100, 100).toFixed(0)}%`;
 
     return (
       <div style={{ marginBottom: '16px' }}>
@@ -184,36 +186,40 @@ export const EvaluationPage: React.FC = () => {
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Diagnosis Accuracy</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '6px 0' }}>
             <span className="mono" style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>
-              {(v2.diagnosis_accuracy * 100).toFixed(1)}%
+              {(((v2?.diagnosis_accuracy ?? 0)) * 100).toFixed(1)}%
             </span>
             <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              vs {(v1.diagnosis_accuracy * 100).toFixed(1)}%
+              vs {(((v1?.diagnosis_accuracy ?? 0)) * 100).toFixed(1)}%
             </span>
           </div>
-          <div style={{ fontSize: '12px', color: '#10b981' }}>+46.7% Improvement</div>
+          <div style={{ fontSize: '12px', color: '#10b981' }}>
+            +{(((v2?.diagnosis_accuracy ?? 0) - (v1?.diagnosis_accuracy ?? 0)) * 100).toFixed(1)}% Improvement
+          </div>
         </div>
 
         <div className="card">
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Recovery Success Rate</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '6px 0' }}>
             <span className="mono" style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6' }}>
-              {(v2.recovery_success_rate * 100).toFixed(1)}%
+              {(((v2?.recovery_success_rate ?? 0)) * 100).toFixed(1)}%
             </span>
             <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              vs {(v1.recovery_success_rate * 100).toFixed(1)}%
+              vs {(((v1?.recovery_success_rate ?? 0)) * 100).toFixed(1)}%
             </span>
           </div>
-          <div style={{ fontSize: '12px', color: '#3b82f6' }}>+66.7% Empirical Recovery</div>
+          <div style={{ fontSize: '12px', color: '#3b82f6' }}>
+            +{(((v2?.recovery_success_rate ?? 0) - (v1?.recovery_success_rate ?? 0)) * 100).toFixed(1)}% Empirical Recovery
+          </div>
         </div>
 
         <div className="card">
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Unsafe Action Rate</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '6px 0' }}>
             <span className="mono" style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>
-              0.0%
+              {(((v2?.unsafe_action_rate ?? 0)) * 100).toFixed(1)}%
             </span>
             <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              vs 33.3%
+              vs {(((v1?.unsafe_action_rate ?? 0)) * 100).toFixed(1)}%
             </span>
           </div>
           <div style={{ fontSize: '12px', color: '#10b981' }}>Zero Unauthorized Actions</div>
@@ -223,13 +229,15 @@ export const EvaluationPage: React.FC = () => {
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mean Recovery Time (MTTR)</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '6px 0' }}>
             <span className="mono" style={{ fontSize: '24px', fontWeight: 700, color: '#c084fc' }}>
-              {v2.mean_recovery_time_sec.toFixed(1)}s
+              {(v2?.mean_recovery_time_sec ?? 0).toFixed(1)}s
             </span>
             <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              vs {v1.mean_recovery_time_sec.toFixed(1)}s
+              vs {(v1?.mean_recovery_time_sec ?? 0).toFixed(1)}s
             </span>
           </div>
-          <div style={{ fontSize: '12px', color: '#c084fc' }}>-179.7s Faster Resolution</div>
+          <div style={{ fontSize: '12px', color: '#c084fc' }}>
+            {((v2?.mean_recovery_time_sec ?? 0) - (v1?.mean_recovery_time_sec ?? 0)).toFixed(1)}s Faster Resolution
+          </div>
         </div>
       </div>
 

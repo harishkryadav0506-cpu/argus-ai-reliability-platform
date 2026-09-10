@@ -78,70 +78,92 @@ class FailureClassifier:
 
         # --- Rule Signatures ---
 
-        # 1. AGENT_LOOP: high latency + extreme token usage + high CPU
-        is_loop = (tokens >= 2400.0 and lat >= 6.5 and cpu >= 70.0)
+        # --- Rule Signatures ---
+
+        # 1. AGENT_LOOP: high latency + extreme token usage + high CPU (iterative circular reasoning)
+        is_loop = (tokens >= 2200.0 and lat >= 5.5 and cpu >= 60.0) or (tokens >= 2600.0 and lat >= 6.0)
         if is_loop:
-            candidate_scores[FailureCategory.AGENT_LOOP] += 0.98
+            loop_strength = 0.95 + min(0.04, ((tokens - 2200.0) / 20000.0) + ((cpu - 60.0) / 300.0))
+            candidate_scores[FailureCategory.AGENT_LOOP] += loop_strength
             evidence.append(f"High token usage ({tokens:.0f} tokens) combined with latency ({lat:.2f}s) and CPU load ({cpu:.1f}%) indicates iterative agent loop")
 
-        # 2. TOOL_FAILURE: high tool failure rate (not dominated by agent loop)
-        if tool_fail >= 0.15 and not is_loop:
-            candidate_scores[FailureCategory.TOOL_FAILURE] += 0.90 + min(0.08, tool_fail * 0.1)
+        # 2. TOOL_FAILURE: primary tool failure rate spike (not dominated by agent loop)
+        if tool_fail >= 0.12 and not is_loop:
+            tool_strength = 0.93 + min(0.04, tool_fail * 0.10)
+            candidate_scores[FailureCategory.TOOL_FAILURE] += tool_strength
             evidence.append(f"Tool failure rate spiked to {tool_fail:.2%} (healthy baseline: <= 2.0%)")
 
         # 3. RAG_DEGRADATION vs RETRIEVAL_FAILURE
-        if retrieval <= 0.65:
+        if retrieval <= 0.70 or hallucination >= 0.20:
             if hallucination >= 0.25:
-                candidate_scores[FailureCategory.RAG_DEGRADATION] += 0.91
+                rag_strength = 0.85 + min(0.04, (hallucination - 0.25) * 0.15 + max(0.0, 0.70 - retrieval) * 0.10)
+                candidate_scores[FailureCategory.RAG_DEGRADATION] += rag_strength
                 evidence.append(f"Retrieval score dropped to {retrieval:.2f} with elevated hallucination score {hallucination:.2f}")
             elif retrieval <= 0.40:
-                candidate_scores[FailureCategory.RETRIEVAL_FAILURE] += 0.93
+                candidate_scores[FailureCategory.RETRIEVAL_FAILURE] += 0.88 + min(0.04, (0.40 - retrieval) * 0.15)
                 evidence.append(f"Critical retrieval failure: retrieval score collapsed to {retrieval:.2f} (baseline: 0.92)")
             else:
-                candidate_scores[FailureCategory.RAG_DEGRADATION] += 0.85
-                evidence.append(f"Sub-optimal retrieval score {retrieval:.2f}")
+                candidate_scores[FailureCategory.RAG_DEGRADATION] += 0.82 + min(0.04, (0.70 - retrieval) * 0.15)
+                evidence.append(f"Sub-optimal retrieval score {retrieval:.2f} (healthy baseline: >= 0.85)")
 
-        # 4. LLM_FAILURE: high error_rate from LLM timeouts/hallucinations/errors
-        if err >= 0.10:
-            candidate_scores[FailureCategory.LLM_FAILURE] += 0.90 + min(0.08, err * 0.2)
-            evidence.append(f"LLM error rate elevated to {err:.2%} (healthy baseline: <= 1.0%)")
+        # 4. LLM_FAILURE: high error_rate from LLM timeouts/internal errors (not downstream of tool cascade)
+        if err >= 0.08:
+            if tool_fail >= 0.12:
+                # Tool failure is the primary root cause; LLM error is downstream
+                candidate_scores[FailureCategory.LLM_FAILURE] += 0.65
+                evidence.append(f"Downstream error rate {err:.2%} coinciding with tool failures")
+            else:
+                llm_strength = 0.91 + min(0.04, err * 0.15)
+                candidate_scores[FailureCategory.LLM_FAILURE] += llm_strength
+                evidence.append(f"LLM error rate elevated to {err:.2%} (healthy baseline: <= 1.0%)")
 
-        # 5. API_FAILURE: external network/endpoint connectivity drops while internal errors are low
-        if succ <= 0.88 and err < 0.10 and tool_fail < 0.10:
-            candidate_scores[FailureCategory.API_FAILURE] += 0.92
+        # 5. API_FAILURE: external connectivity drops while internal errors and tool failures are low
+        if succ <= 0.88 and err < 0.08 and tool_fail < 0.10:
+            candidate_scores[FailureCategory.API_FAILURE] += 0.84 + min(0.06, (0.88 - succ) * 0.30)
             evidence.append(f"API success rate degraded to {succ:.2%} without associated internal model exceptions")
 
-        # 6. LATENCY_SPIKE: latency > 4.0 without agent loop
-        if lat >= 4.0 and tokens < 2400.0:
-            candidate_scores[FailureCategory.LATENCY_SPIKE] += 0.89
+        # 6. LATENCY_SPIKE: latency > 3.5s without agent loop
+        if lat >= 3.5 and not is_loop and tokens < 1600.0:
+            lat_strength = 0.88 + min(0.04, (lat - 3.5) / 50.0)
+            candidate_scores[FailureCategory.LATENCY_SPIKE] += lat_strength
             evidence.append(f"Latency surged to {lat:.2f}s (healthy SLA threshold: 4.0s, baseline: 1.2s)")
 
-        # 7. COST_SPIKE: tokens > 1800 or high request volume without long latency
-        if tokens >= 1800.0 and lat < 6.5:
-            candidate_scores[FailureCategory.COST_SPIKE] += 0.88
-            evidence.append(f"Token consumption spiked to {tokens:.0f} tokens/request (+{((tokens - 520.0)/520.0):.0%} above baseline)")
-        if req_vol >= 130.0:
-            candidate_scores[FailureCategory.COST_SPIKE] += 0.40
-            evidence.append(f"Request volume surge: {req_vol:.0f} req/s (baseline: 50.0 req/s)")
+        # 7. COST_SPIKE: tokens > 1800 or high request volume without long latency or loop
+        if (tokens >= 1800.0 or req_vol >= 110.0) and not is_loop:
+            cost_strength = 0.82 + min(0.04, (tokens - 1800.0) / 20000.0) + min(0.02, (req_vol - 110.0) / 1000.0)
+            if tokens >= 2000.0:
+                evidence.append(f"Token consumption spiked to {tokens:.0f} tokens/request (+{((tokens - 520.0)/520.0):.0%} above baseline)")
+            if req_vol >= 110.0:
+                evidence.append(f"Request volume surge: {req_vol:.0f} req/s (baseline: 50.0 req/s)")
+            candidate_scores[FailureCategory.COST_SPIKE] += cost_strength
 
         # 8. DATA_QUALITY: subtle degradation in retrieval without full outage, or hallucination in isolation
-        if 0.65 < retrieval <= 0.78 and hallucination >= 0.10:
-            candidate_scores[FailureCategory.DATA_QUALITY] += 0.82
+        if 0.65 < retrieval <= 0.80 and 0.08 <= hallucination < 0.20:
+            candidate_scores[FailureCategory.DATA_QUALITY] += 0.80
             evidence.append(f"Data quality drift: retrieval score {retrieval:.2f}, hallucination {hallucination:.2f}")
 
         # Determine highest scoring candidate
-        best_category, score = max(candidate_scores.items(), key=lambda x: x[1])
+        best_category, raw_score = max(candidate_scores.items(), key=lambda x: x[1])
 
-        if score < 0.50:
+        if raw_score < 0.50:
             best_category = FailureCategory.UNKNOWN
-            score = 0.50
+            final_confidence = 0.50
             if not evidence:
                 evidence.append("Metrics exhibit unexpected distribution without matching known failure signatures")
+        else:
+            # Genuinely blend rule signal strength (55%) with AnomalyDetector confidence (45%)
+            # from anomaly_info (which reflects multivariate Isolation Forest + Z-score distance)
+            if anomaly_info and anomaly_info.get("anomaly_detected"):
+                det_conf = float(anomaly_info.get("confidence", 0.85))
+                blended = (0.55 * raw_score) + (0.45 * det_conf)
+            else:
+                blended = raw_score
 
-        confidence = round(min(0.98, max(0.65, score)), 2)
+            # Scale smoothly without artificial constant clipping
+            final_confidence = round(min(0.97, max(0.65, blended)), 2)
 
         return {
             "category": best_category,
-            "confidence": confidence,
+            "confidence": final_confidence,
             "evidence": evidence,
         }

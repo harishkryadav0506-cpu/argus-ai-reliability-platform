@@ -165,6 +165,16 @@ class SimulationEngine:
             for name, spec in distortions.items():
                 metrics[name] = self._sample_metric(spec)
 
+        # 3. Convenience / Aliased fields for UI & SLA consumers
+        token_usage = metrics.get("token_usage", 520.0)
+        metrics["token_count"] = token_usage
+        hallucination = metrics.get("hallucination_score", 0.03)
+        metrics["answer_relevance"] = round(max(0.0, min(1.0, 1.0 - hallucination)), 4)
+        cpu_usage = metrics.get("cpu_usage", 35.0)
+        metrics["cpu_utilization"] = round(cpu_usage / 100.0, 4)
+        metrics["cost_per_query"] = round(token_usage * 0.00003, 4)
+        metrics["loop_count"] = 4.0 if (self.is_fault_active and self._active_fault == FaultType.AGENT_LOOP) else 0.0
+
         return metrics
 
     def check_thresholds(self, metrics: Dict[str, float]) -> Optional[Dict[str, Any]]:

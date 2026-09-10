@@ -30,9 +30,10 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
     const points = history
       .map((val, idx) => {
+        const valNum = Number(val) || 0;
         const x = (idx / (history.length - 1)) * width;
-        const y = height - ((val - min) / range) * (height - 6) - 3;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
+        const y = height - ((valNum - min) / range) * (height - 6) - 3;
+        return `${(x || 0).toFixed(1)},${(isNaN(y) ? 0 : y).toFixed(1)}`;
       })
       .join(' ');
 
@@ -65,7 +66,13 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div className="metric-value-container">
-          <span className="metric-value">{typeof value === 'number' ? value.toFixed(value < 10 ? 3 : 1) : value}</span>
+          <span className="metric-value">
+            {typeof value === 'number'
+              ? isNaN(value)
+                ? '0.0'
+                : value.toFixed(value < 10 ? 3 : 1)
+              : (value ?? '—')}
+          </span>
           {unit && <span className="metric-unit">{unit}</span>}
         </div>
         <div>{renderSparkline()}</div>

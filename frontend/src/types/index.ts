@@ -103,12 +103,15 @@ export interface BenchmarkMetricsComparison {
 
 export interface BenchmarkResult {
   benchmark_id: string;
-  evaluated_at: string;
-  scenarios_evaluated: number;
+  evaluated_at?: string;
+  executed_at?: string;
+  scenarios_evaluated?: number;
+  total_scenarios?: number;
   v1_baseline: BenchmarkMetricsComparison;
   v2_argus: BenchmarkMetricsComparison;
-  delta: Record<string, number>;
-  markdown_report: string;
+  delta?: Record<string, number>;
+  deltas?: Record<string, number>;
+  markdown_report?: string;
 }
 
 export interface HealthServiceStatus {
@@ -120,7 +123,7 @@ export interface HealthResponse {
   status: string;
   environment: string;
   services: {
-    database: string;
+    database: string | HealthServiceStatus;
     llm: HealthServiceStatus;
     langsmith: HealthServiceStatus;
     redis: HealthServiceStatus;

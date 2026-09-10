@@ -47,12 +47,11 @@ def _llm_diagnose(
         from langchain_core.prompts import ChatPromptTemplate
 
         llm = ChatGoogleGenerativeAI(
-            model=settings.LLM_MODEL or "gemini-2.0-flash",
+            model=settings.LLM_MODEL or "gemini-3.6-flash",
             google_api_key=settings.GOOGLE_API_KEY,
-            temperature=0.0,
         )
 
-        structured_llm = llm.with_structured_output(DiagnosisSchema)
+        structured_llm = llm.with_structured_output(DiagnosisSchema, method="json_mode")
 
         runbook_context = "\n\n".join(
             [f"--- Runbook Source: {rb['source']} ({rb['document']}) ---\n{rb['chunk']}" for rb in runbooks]

@@ -239,7 +239,7 @@ export const IncidentsPage: React.FC = () => {
                     <StatusBadge type="severity" value={inc.severity} />
                   </td>
                   <td className="mono" style={{ fontWeight: 600 }}>
-                    {((inc.confidence || 0.9) * 100).toFixed(0)}%
+                    {(((inc.confidence ?? 0.9)) * 100).toFixed(0)}%
                   </td>
                   <td>
                     <StatusBadge type="status" value={inc.status} />

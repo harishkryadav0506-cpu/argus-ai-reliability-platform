@@ -26,6 +26,15 @@ configure_logging(settings.LOG_LEVEL)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-create database tables on boot if reachable
+    try:
+        from app.database.models import Base
+        from app.database.session import engine
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Could not auto-create database tables on startup: %s", e)
+
     # Start background metric simulation
     simulation_engine.start_background_task(interval=2.0)
     yield

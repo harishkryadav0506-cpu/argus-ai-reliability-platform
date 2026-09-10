@@ -107,7 +107,10 @@ export const DashboardPage: React.FC = () => {
   };
 
   const getMetricHistory = (key: keyof MetricSnapshot): number[] => {
-    return history.map((h) => Number(h[key]) || 0);
+    return history.map((h: any) => {
+      const val = h[key] ?? h?.metrics?.[key as string];
+      return Number(val) || 0;
+    });
   };
 
   // Render SVG multi-series trend line chart
@@ -115,22 +118,24 @@ export const DashboardPage: React.FC = () => {
     if (history.length < 2) return null;
     const width = 800;
     const height = 180;
-    const latVals = history.map((h) => h.latency);
+    const latVals = history.map((h: any) => Number(h.latency ?? h?.metrics?.latency ?? 0));
     const maxLat = Math.max(...latVals, 4.0);
 
     const latPoints = history
-      .map((h, i) => {
+      .map((h: any, i) => {
         const x = (i / (history.length - 1)) * width;
-        const y = height - (h.latency / maxLat) * (height - 30) - 15;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
+        const lat = Number(h.latency ?? h?.metrics?.latency ?? 0);
+        const y = height - (lat / maxLat) * (height - 30) - 15;
+        return `${(x || 0).toFixed(1)},${(isNaN(y) ? 0 : y).toFixed(1)}`;
       })
       .join(' ');
 
     const errPoints = history
-      .map((h, i) => {
+      .map((h: any, i) => {
         const x = (i / (history.length - 1)) * width;
-        const y = height - (h.error_rate / 0.25) * (height - 30) - 15;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
+        const err = Number(h.error_rate ?? h?.metrics?.error_rate ?? 0);
+        const y = height - (err / 0.25) * (height - 30) - 15;
+        return `${(x || 0).toFixed(1)},${(isNaN(y) ? 0 : y).toFixed(1)}`;
       })
       .join(' ');
 
@@ -353,96 +358,96 @@ export const DashboardPage: React.FC = () => {
       <div className="metrics-grid">
         <MetricCard
           label="Latency"
-          value={cur.latency}
+          value={cur.latency ?? 0}
           unit="s"
           threshold="<= 2.20s"
-          isBreached={cur.latency > 2.2}
+          isBreached={(cur.latency ?? 0) > 2.2}
           history={getMetricHistory('latency')}
           icon={<Clock size={14} />}
         />
 
         <MetricCard
           label="Error Rate"
-          value={(cur.error_rate * 100).toFixed(1)}
+          value={((cur.error_rate ?? 0) * 100).toFixed(1)}
           unit="%"
           threshold="<= 2.0%"
-          isBreached={cur.error_rate > 0.02}
+          isBreached={(cur.error_rate ?? 0) > 0.02}
           history={getMetricHistory('error_rate').map((v) => v * 100)}
           icon={<AlertCircle size={14} />}
         />
 
         <MetricCard
           label="RAG Retrieval Score"
-          value={cur.retrieval_score}
+          value={cur.retrieval_score ?? 0}
           threshold=">= 0.85"
-          isBreached={cur.retrieval_score < 0.85}
+          isBreached={(cur.retrieval_score ?? 1) < 0.85}
           history={getMetricHistory('retrieval_score')}
           icon={<Database size={14} />}
         />
 
         <MetricCard
           label="Answer Relevance"
-          value={cur.answer_relevance}
+          value={cur.answer_relevance ?? (1 - Number(cur.hallucination_score ?? 0))}
           threshold=">= 0.88"
-          isBreached={cur.answer_relevance < 0.88}
+          isBreached={Number(cur.answer_relevance ?? (1 - Number(cur.hallucination_score ?? 0))) < 0.88}
           history={getMetricHistory('answer_relevance')}
           icon={<Layers size={14} />}
         />
 
         <MetricCard
           label="Tool Failure Rate"
-          value={(cur.tool_failure_rate * 100).toFixed(1)}
+          value={((cur.tool_failure_rate ?? 0) * 100).toFixed(1)}
           unit="%"
           threshold="<= 3.0%"
-          isBreached={cur.tool_failure_rate > 0.03}
+          isBreached={(cur.tool_failure_rate ?? 0) > 0.03}
           history={getMetricHistory('tool_failure_rate').map((v) => v * 100)}
           icon={<Zap size={14} />}
         />
 
         <MetricCard
           label="Context Token Count"
-          value={cur.token_count}
+          value={cur.token_count ?? cur.token_usage ?? 0}
           threshold="<= 1,500"
-          isBreached={cur.token_count > 1500}
+          isBreached={Number(cur.token_count ?? cur.token_usage ?? 0) > 1500}
           history={getMetricHistory('token_count')}
           icon={<Flame size={14} />}
         />
 
         <MetricCard
           label="Cost Per Query"
-          value={`$${cur.cost_per_query.toFixed(3)}`}
+          value={`$${Number(cur.cost_per_query ?? (Number(cur.token_usage ?? cur.token_count ?? 500) * 0.00003)).toFixed(3)}`}
           threshold="<= $0.050"
-          isBreached={cur.cost_per_query > 0.05}
+          isBreached={Number(cur.cost_per_query ?? (Number(cur.token_usage ?? cur.token_count ?? 500) * 0.00003)) > 0.05}
           history={getMetricHistory('cost_per_query')}
           icon={<Coins size={14} />}
         />
 
         <MetricCard
           label="Agent Loop Count"
-          value={cur.loop_count}
+          value={cur.loop_count ?? 0}
           threshold="<= 1"
-          isBreached={cur.loop_count > 1}
+          isBreached={(cur.loop_count ?? 0) > 1}
           history={getMetricHistory('loop_count')}
           icon={<Repeat size={14} />}
         />
 
         <MetricCard
           label="API Success Rate"
-          value={(cur.api_success_rate * 100).toFixed(1)}
+          value={((cur.api_success_rate ?? 1) * 100).toFixed(1)}
           unit="%"
           threshold=">= 98.0%"
-          isBreached={cur.api_success_rate < 0.98}
+          isBreached={(cur.api_success_rate ?? 1) < 0.98}
           history={getMetricHistory('api_success_rate').map((v) => v * 100)}
           icon={<ShieldAlert size={14} />}
         />
 
         <MetricCard
           label="CPU Utilization"
-          value={(cur.cpu_utilization * 100).toFixed(1)}
+          value={(cur.cpu_utilization !== undefined ? (Number(cur.cpu_utilization) * (Number(cur.cpu_utilization) <= 1.0 ? 100 : 1)) : Number(cur.cpu_usage ?? 0)).toFixed(1)}
           unit="%"
           threshold="<= 80.0%"
-          isBreached={cur.cpu_utilization > 0.8}
-          history={getMetricHistory('cpu_utilization').map((v) => v * 100)}
+          isBreached={Number(cur.cpu_utilization ?? (Number(cur.cpu_usage ?? 0) / 100)) > 0.8}
+          history={getMetricHistory('cpu_utilization').map((v) => (v <= 1.0 ? v * 100 : v))}
           icon={<Cpu size={14} />}
         />
       </div>
@@ -548,7 +553,7 @@ export const DashboardPage: React.FC = () => {
                     <td>
                       <StatusBadge type="severity" value={inc.severity} />
                     </td>
-                    <td className="mono">{((inc.confidence || 0.9) * 100).toFixed(0)}%</td>
+                    <td className="mono">{(((inc.confidence ?? 0.9)) * 100).toFixed(0)}%</td>
                     <td>
                       <StatusBadge type="status" value={inc.status} />
                     </td>

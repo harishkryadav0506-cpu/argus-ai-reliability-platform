@@ -40,14 +40,30 @@ export const SettingsPage: React.FC = () => {
     fetchHealth();
   }, []);
 
+  const getStatusString = (val: any, fallback = 'OK'): string => {
+    if (!val) return fallback;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val.status) return String(val.status);
+    return fallback;
+  };
+
   const s = health?.services || {
-    database: 'OK',
-    llm: { status: 'CONFIGURED (gemini-2.0-flash)' },
-    langsmith: { status: 'CONNECTED' },
-    redis: { status: 'IN_MEMORY_FALLBACK' },
-    vector_db: { status: 'OK', path: 'data/chromadb' },
+    database: { status: 'OK' },
+    llm: { status: 'NOT_CONFIGURED (fallback mode)' },
+    langsmith: { status: 'NOT_CONFIGURED (local logging only)' },
+    redis: { status: 'NOT_CONFIGURED (in-memory fallback)' },
+    vector_db: { status: 'OK', path: './data/vector_store' },
     mcp: { status: 'ACTIVE (13 tools registered)', allowlist: 'ENFORCED' },
   };
+
+  const dbStatus = getStatusString(s.database, 'OK');
+  const llmStatus = getStatusString(s.llm, 'NOT_CONFIGURED');
+  const vectorStatus = getStatusString(s.vector_db, 'OK');
+  const vectorPath = typeof s.vector_db === 'object' && s.vector_db?.path ? s.vector_db.path : './data/vector_store';
+  const mcpStatus = getStatusString(s.mcp, 'ACTIVE (13 tools registered)');
+  const mcpAllowlist = typeof s.mcp === 'object' && s.mcp?.allowlist ? s.mcp.allowlist : 'ENFORCED';
+  const langsmithStatus = getStatusString(s.langsmith, 'NOT_CONFIGURED');
+  const redisStatus = getStatusString(s.redis, 'NOT_CONFIGURED');
 
   return (
     <div>
@@ -92,7 +108,7 @@ export const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      {/* 6 Integration Status Cards Grid */}
+      {/* Integration Status Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', marginBottom: '28px' }}>
         {/* LLM Provider */}
         <div className="card">
@@ -101,7 +117,9 @@ export const SettingsPage: React.FC = () => {
               <Cpu size={16} style={{ color: '#8b5cf6' }} />
               LLM Provider (Google Gemini)
             </h3>
-            <span className="badge badge-low">ACTIVE</span>
+            <span className={`badge ${llmStatus.includes('CONFIGURED') && !llmStatus.includes('NOT_CONFIGURED') ? 'badge-low' : 'badge-info'}`}>
+              {llmStatus.includes('CONFIGURED') && !llmStatus.includes('NOT_CONFIGURED') ? 'CONFIGURED' : 'FALLBACK'}
+            </span>
           </div>
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
@@ -110,7 +128,9 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Status:</span>
-              <span className="mono" style={{ color: '#10b981' }}>{s.llm?.status || 'CONFIGURED'}</span>
+              <span className="mono" style={{ color: llmStatus.includes('CONFIGURED') && !llmStatus.includes('NOT_CONFIGURED') ? '#10b981' : '#f59e0b' }}>
+                {llmStatus}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>API Key:</span>
@@ -126,12 +146,12 @@ export const SettingsPage: React.FC = () => {
               <Database size={16} style={{ color: '#3b82f6' }} />
               Vector Database (ChromaDB)
             </h3>
-            <span className="badge badge-low">OK</span>
+            <span className="badge badge-low">{vectorStatus}</span>
           </div>
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Collections:</span>
-              <span className="mono">runbooks, historical_incidents</span>
+              <span style={{ color: 'var(--text-muted)' }}>Storage Path:</span>
+              <span className="mono">{vectorPath}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Embedding Engine:</span>
@@ -139,7 +159,7 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Marginal API Cost:</span>
-              <span className="mono" style={{ color: '#10b981' }}>$0.00 (Zero API calls)</span>
+              <span className="mono" style={{ color: '#10b981' }}>$0.00 (Local In-Process)</span>
             </div>
           </div>
         </div>
@@ -151,16 +171,16 @@ export const SettingsPage: React.FC = () => {
               <Terminal size={16} style={{ color: '#10b981' }} />
               Model Context Protocol (MCP Server)
             </h3>
-            <span className="badge badge-low">ACTIVE</span>
+            <span className="badge badge-low">{mcpAllowlist}</span>
           </div>
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Registered Tools:</span>
-              <span className="mono">13 Active Tools (Read + Action)</span>
+              <span style={{ color: 'var(--text-muted)' }}>Server Status:</span>
+              <span className="mono" style={{ color: '#10b981' }}>{mcpStatus}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Action Tool Security:</span>
-              <span className="mono" style={{ color: '#10b981' }}>Strict Allowlist + AuditLog</span>
+              <span className="mono" style={{ color: '#10b981' }}>Strict Allowlist ({mcpAllowlist})</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Approval Enforcement:</span>
@@ -176,12 +196,16 @@ export const SettingsPage: React.FC = () => {
               <Activity size={16} style={{ color: '#f59e0b' }} />
               Observability (LangSmith)
             </h3>
-            <span className="badge badge-info">CONFIGURED</span>
+            <span className={`badge ${langsmithStatus.includes('CONNECTED') ? 'badge-low' : 'badge-info'}`}>
+              {langsmithStatus.includes('CONNECTED') ? 'CONNECTED' : 'LOCAL'}
+            </span>
           </div>
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Tracing Status:</span>
-              <span className="mono" style={{ color: '#60a5fa' }}>{s.langsmith?.status || 'CONNECTED'}</span>
+              <span className="mono" style={{ color: langsmithStatus.includes('CONNECTED') ? '#10b981' : '#60a5fa' }}>
+                {langsmithStatus}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Section 17 Metadata:</span>
@@ -201,12 +225,16 @@ export const SettingsPage: React.FC = () => {
               <Server size={16} style={{ color: '#38bdf8' }} />
               Database (PostgreSQL)
             </h3>
-            <span className="badge badge-low">CONNECTED</span>
+            <span className={`badge ${dbStatus === 'OK' || dbStatus === 'HEALTHY' ? 'badge-low' : 'badge-critical'}`}>
+              {dbStatus === 'OK' || dbStatus === 'HEALTHY' ? 'CONNECTED' : 'DEGRADED'}
+            </span>
           </div>
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Database Health:</span>
-              <span className="mono" style={{ color: '#10b981' }}>{s.database || 'HEALTHY'}</span>
+              <span className="mono" style={{ color: dbStatus === 'OK' || dbStatus === 'HEALTHY' ? '#10b981' : '#ef4444' }}>
+                {dbStatus}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Dual-Persistence:</span>
@@ -215,6 +243,31 @@ export const SettingsPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Audit Logs Table:</span>
               <span className="mono">Active & Immutable</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Redis Cache & Memory */}
+        <div className="card">
+          <div className="card-header">
+            <h3 className="card-title">
+              <Layers size={16} style={{ color: '#ec4899' }} />
+              State & Cache (Redis)
+            </h3>
+            <span className="badge badge-info">IN-MEMORY</span>
+          </div>
+          <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Redis Status:</span>
+              <span className="mono" style={{ color: '#94a3b8' }}>{redisStatus}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Fallback Mode:</span>
+              <span className="mono" style={{ color: '#10b981' }}>Thread-Safe Memory Ring Buffer</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Persistence Tier:</span>
+              <span className="mono">PostgreSQL Primary (Section 6)</span>
             </div>
           </div>
         </div>

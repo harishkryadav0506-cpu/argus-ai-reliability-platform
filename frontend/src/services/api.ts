@@ -3,6 +3,7 @@
  */
 import {
   MetricsResponse,
+  MetricSnapshot,
   Incident,
   RecoveryOptionsResponse,
   ApprovalResponse,
@@ -38,8 +39,45 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 
 export const api = {
   // Metrics
-  getMetrics: (limit = 50): Promise<MetricsResponse> =>
-    fetchJson<MetricsResponse>(`/api/metrics?limit=${limit}`),
+  getMetrics: async (limit = 50): Promise<MetricsResponse> => {
+    const data = await fetchJson<any>(`/api/metrics?limit=${limit}`);
+    const normalize = (m: any = {}, timestamp?: string): MetricSnapshot => {
+      const raw = m?.metrics || m || {};
+      const tokenCount = Number(raw.token_count ?? raw.token_usage ?? 500);
+      const hallucination = Number(raw.hallucination_score ?? 0.03);
+      const answerRelevance = Number(raw.answer_relevance ?? Math.max(0, 1 - hallucination));
+      const cpuRaw = Number(raw.cpu_utilization ?? raw.cpu_usage ?? 35);
+      const cpuUtil = cpuRaw > 1 ? cpuRaw / 100 : cpuRaw;
+      const cost = Number(raw.cost_per_query ?? (tokenCount * 0.00003));
+      const loopCount = Number(raw.loop_count ?? 0);
+
+      return {
+        timestamp: raw.timestamp || m.timestamp || timestamp || new Date().toISOString(),
+        latency: Number(raw.latency ?? 1.2),
+        error_rate: Number(raw.error_rate ?? 0.005),
+        token_count: tokenCount,
+        token_usage: tokenCount,
+        cost_per_query: cost,
+        retrieval_score: Number(raw.retrieval_score ?? 0.92),
+        answer_relevance: answerRelevance,
+        tool_failure_rate: Number(raw.tool_failure_rate ?? 0.008),
+        loop_count: loopCount,
+        api_success_rate: Number(raw.api_success_rate ?? 0.995),
+        cpu_utilization: cpuUtil,
+        cpu_usage: cpuRaw > 1 ? cpuRaw : cpuRaw * 100,
+        ...raw,
+      };
+    };
+
+    const current = normalize(data.current);
+    const history = (data.history || []).map((h: any) => normalize(h, h.timestamp));
+
+    return {
+      current,
+      history,
+      count: data.count || history.length,
+    };
+  },
 
   // Incidents
   getIncidents: (limit = 100): Promise<Incident[]> =>

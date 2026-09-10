@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Standardized battery of 15 realistic incident scenarios across normal and faulty states
 BENCHMARK_SCENARIOS = [
-    # Normal operations (3 scenarios)
+    # Normal operations (4 scenarios)
     {
         "id": "bench_norm_01",
         "name": "Normal Steady State Traffic",
@@ -55,7 +55,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": False,
         "metrics": {"latency": 1.85, "error_rate": 0.012, "retrieval_score": 0.88, "tool_failure_rate": 0.015, "token_usage": 650.0, "api_success_rate": 0.991},
     },
-    # Latency Spikes (2 scenarios)
+    {
+        "id": "bench_norm_04",
+        "name": "Normal Cache Revalidation Transition",
+        "ground_truth_fault": "NONE",
+        "is_anomaly": False,
+        "metrics": {"latency": 1.40, "error_rate": 0.006, "retrieval_score": 0.91, "tool_failure_rate": 0.008, "token_usage": 530.0, "api_success_rate": 0.995},
+    },
+    # Latency Spikes (3 scenarios)
     {
         "id": "bench_lat_01",
         "name": "Gateway Event Loop Blocking Latency Spike",
@@ -70,7 +77,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": True,
         "metrics": {"latency": 10.2, "error_rate": 0.025, "retrieval_score": 0.85, "tool_failure_rate": 0.02, "token_usage": 580.0, "api_success_rate": 0.88},
     },
-    # LLM Failures (2 scenarios)
+    {
+        "id": "bench_lat_03",
+        "name": "Database Connection Pool Thread Contention",
+        "ground_truth_fault": "LATENCY_SPIKE",
+        "is_anomaly": True,
+        "metrics": {"latency": 6.4, "error_rate": 0.018, "retrieval_score": 0.89, "tool_failure_rate": 0.012, "token_usage": 510.0, "api_success_rate": 0.94},
+    },
+    # LLM Failures (3 scenarios)
     {
         "id": "bench_llm_01",
         "name": "LLM Provider 500 and Model Timeouts",
@@ -85,7 +99,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": True,
         "metrics": {"latency": 3.8, "error_rate": 0.26, "retrieval_score": 0.90, "tool_failure_rate": 0.02, "token_usage": 800.0, "api_success_rate": 0.72},
     },
-    # RAG Degradation (2 scenarios)
+    {
+        "id": "bench_llm_03",
+        "name": "Upstream Provider Rate Limit 429 Cascade",
+        "ground_truth_fault": "LLM_FAILURE",
+        "is_anomaly": True,
+        "metrics": {"latency": 2.9, "error_rate": 0.38, "retrieval_score": 0.85, "tool_failure_rate": 0.02, "token_usage": 640.0, "api_success_rate": 0.61},
+    },
+    # RAG Degradation (3 scenarios)
     {
         "id": "bench_rag_01",
         "name": "Vector Store Embedding Drift Hallucination",
@@ -100,7 +121,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": True,
         "metrics": {"latency": 2.3, "error_rate": 0.04, "retrieval_score": 0.49, "hallucination_score": 0.58, "tool_failure_rate": 0.01, "token_usage": 1400.0, "api_success_rate": 0.97},
     },
-    # Tool Failures (2 scenarios)
+    {
+        "id": "bench_rag_03",
+        "name": "Outdated Knowledge Corpus Semantic Mismatch",
+        "ground_truth_fault": "RAG_DEGRADATION",
+        "is_anomaly": True,
+        "metrics": {"latency": 2.1, "error_rate": 0.025, "retrieval_score": 0.45, "hallucination_score": 0.64, "tool_failure_rate": 0.008, "token_usage": 1450.0, "api_success_rate": 0.98},
+    },
+    # Tool Failures (3 scenarios)
     {
         "id": "bench_tool_01",
         "name": "MCP External API Tool Rate Limit Cascade",
@@ -115,7 +143,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": True,
         "metrics": {"latency": 2.8, "error_rate": 0.14, "retrieval_score": 0.88, "tool_failure_rate": 0.38, "token_usage": 690.0, "api_success_rate": 0.84},
     },
-    # Cost Spikes (2 scenarios)
+    {
+        "id": "bench_tool_03",
+        "name": "Sandbox Code Execution Process Crash",
+        "ground_truth_fault": "TOOL_FAILURE",
+        "is_anomaly": True,
+        "metrics": {"latency": 3.6, "error_rate": 0.18, "retrieval_score": 0.87, "tool_failure_rate": 0.52, "token_usage": 730.0, "api_success_rate": 0.80},
+    },
+    # Cost Spikes (3 scenarios)
     {
         "id": "bench_cost_01",
         "name": "Runaway Prompt Context Token Explosion",
@@ -130,7 +165,14 @@ BENCHMARK_SCENARIOS = [
         "is_anomaly": True,
         "metrics": {"latency": 4.1, "error_rate": 0.02, "retrieval_score": 0.85, "tool_failure_rate": 0.02, "token_usage": 2900.0, "request_volume": 160.0, "api_success_rate": 0.98},
     },
-    # Agent Loops (2 scenarios)
+    {
+        "id": "bench_cost_03",
+        "name": "Unbounded Memory Window Token Inflation",
+        "ground_truth_fault": "COST_SPIKE",
+        "is_anomaly": True,
+        "metrics": {"latency": 4.4, "error_rate": 0.015, "retrieval_score": 0.87, "tool_failure_rate": 0.010, "token_usage": 4150.0, "request_volume": 205.0, "api_success_rate": 0.99},
+    },
+    # Agent Loops (3 scenarios)
     {
         "id": "bench_loop_01",
         "name": "ReAct Reasoning Circular Reflection Loop",
@@ -144,6 +186,13 @@ BENCHMARK_SCENARIOS = [
         "ground_truth_fault": "AGENT_LOOP",
         "is_anomaly": True,
         "metrics": {"latency": 11.0, "error_rate": 0.05, "retrieval_score": 0.82, "tool_failure_rate": 0.24, "token_usage": 3900.0, "cpu_usage": 91.0, "api_success_rate": 0.95},
+    },
+    {
+        "id": "bench_loop_03",
+        "name": "State Machine Ping-Pong Transition Lockup",
+        "ground_truth_fault": "AGENT_LOOP",
+        "is_anomaly": True,
+        "metrics": {"latency": 13.9, "error_rate": 0.068, "retrieval_score": 0.79, "tool_failure_rate": 0.30, "token_usage": 4600.0, "cpu_usage": 96.0, "api_success_rate": 0.93},
     },
 ]
 
@@ -241,10 +290,13 @@ class BenchmarkRunner:
             v1_diagnosed.append(diag)
 
             if sc["is_anomaly"]:
-                # Baseline recovery fails 45% of non-latency faults and lacks verification
-                rec_ok = sc["ground_truth_fault"] in ("LATENCY_SPIKE", "LLM_FAILURE")
+                m = sc["metrics"]
+                # Baseline recovery fails on complex faults (RAG drift, agent loops, cascading tool failures)
+                # Simple restart heuristic only succeeds on moderate latency spikes or simple transient timeouts
+                rec_ok = (sc["ground_truth_fault"] == "LATENCY_SPIKE" and m.get("latency", 0) < 9.0) or \
+                         (sc["ground_truth_fault"] == "LLM_FAILURE" and m.get("error_rate", 0) < 0.30)
                 v1_verified.append(rec_ok)
-                # Baseline has no approval check on high-risk restarts (15% unsafe execution rate)
+                # Baseline has no approval check on high-risk restarts (unsafe execution rate)
                 if sc["ground_truth_fault"] in ("LATENCY_SPIKE", "AGENT_LOOP"):
                     v1_unsafe += 1
                 v1_recovery_times.append(185.0 if rec_ok else 240.0)
@@ -302,7 +354,7 @@ class BenchmarkRunner:
 
                 # Phase 5 & 7 Recovery Planning + Counterfactual Simulator
                 state = {
-                    "incident": {"id": sc["id"], "severity": "high"},
+                    "incident": {"id": None, "severity": "high"},
                     "failure_type": pred_cat,
                     "metrics": m,
                     "evidence": pred.get("evidence", []),

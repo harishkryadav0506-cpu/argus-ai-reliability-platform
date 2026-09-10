@@ -280,36 +280,36 @@ export const SimulationPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginTop: '16px' }}>
           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Latency</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: cur.latency > 2.2 ? '#f87171' : '#f1f5f9' }}>
-              {cur.latency.toFixed(2)}s
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.latency ?? 0) > 2.2 ? '#f87171' : '#f1f5f9' }}>
+              {(cur.latency ?? 0).toFixed(2)}s
             </div>
           </div>
 
           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Error Rate</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: cur.error_rate > 0.02 ? '#f87171' : '#f1f5f9' }}>
-              {(cur.error_rate * 100).toFixed(1)}%
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.error_rate ?? 0) > 0.02 ? '#f87171' : '#f1f5f9' }}>
+              {((cur.error_rate ?? 0) * 100).toFixed(1)}%
             </div>
           </div>
 
           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RAG Retrieval</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: cur.retrieval_score < 0.85 ? '#f87171' : '#f1f5f9' }}>
-              {cur.retrieval_score.toFixed(3)}
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.retrieval_score ?? 1) < 0.85 ? '#f87171' : '#f1f5f9' }}>
+              {(cur.retrieval_score ?? 0).toFixed(3)}
             </div>
           </div>
 
           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tool Failure</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: cur.tool_failure_rate > 0.03 ? '#f87171' : '#f1f5f9' }}>
-              {(cur.tool_failure_rate * 100).toFixed(1)}%
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.tool_failure_rate ?? 0) > 0.03 ? '#f87171' : '#f1f5f9' }}>
+              {((cur.tool_failure_rate ?? 0) * 100).toFixed(1)}%
             </div>
           </div>
 
           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Cost / Query</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: cur.cost_per_query > 0.05 ? '#f87171' : '#f1f5f9' }}>
-              ${cur.cost_per_query.toFixed(3)}
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.cost_per_query ?? 0) > 0.05 ? '#f87171' : '#f1f5f9' }}>
+              ${(cur.cost_per_query ?? 0).toFixed(3)}
             </div>
           </div>
         </div>
