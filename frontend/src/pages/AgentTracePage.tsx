@@ -119,7 +119,7 @@ export const AgentTracePage: React.FC = () => {
       duration: '840ms',
       description: 'Google Gemini structured output requiring runbook evidence citations',
       details: {
-        llm_model: 'gemini-2.0-flash (via ChatGoogleGenerativeAI)',
+        llm_model: 'gemini-3.6-flash (via ChatGoogleGenerativeAI)',
         diagnosed_fault: failureType,
         evidence_citations: [
           `Telemetry deviation matched ${failureType} SLA breach signature`,

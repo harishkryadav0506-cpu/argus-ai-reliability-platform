@@ -2,11 +2,12 @@ import React from 'react';
 
 interface StatusBadgeProps {
   type: 'severity' | 'status' | 'risk' | 'approval';
-  value: string;
+  value?: string | null;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value }) => {
-  const val = (value || '').toLowerCase();
+  const safeValue = value || 'unknown';
+  const val = safeValue.toLowerCase();
 
   let className = 'badge';
 
@@ -30,5 +31,5 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ type, value }) => {
     else className += ' badge-medium';
   }
 
-  return <span className={className}>{value.toUpperCase()}</span>;
+  return <span className={className}>{safeValue.toUpperCase()}</span>;
 };

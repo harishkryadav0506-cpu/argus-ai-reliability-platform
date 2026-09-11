@@ -45,11 +45,18 @@ export interface Incident {
 }
 
 export interface StrategyOption {
-  strategy: string;
-  recovery_probability: number;
-  risk: 'low' | 'medium' | 'high';
-  reversibility: 'instant' | 'reversible' | 'irreversible';
-  side_effects: string;
+  id?: string;
+  action?: string;
+  strategy?: string;
+  parameters?: Record<string, any>;
+  success_probability?: number;
+  recovery_probability?: number;
+  risk_score?: number;
+  risk?: 'low' | 'medium' | 'high' | string;
+  reversibility?: 'instant' | 'reversible' | 'irreversible' | string;
+  side_effects?: string;
+  rationale?: string;
+  potential_impact?: string | null;
 }
 
 export interface RecoveryOptionsResponse {

@@ -292,7 +292,7 @@ export const IncidentDetailPage: React.FC = () => {
               <div style={{ fontSize: '13px', lineHeight: 1.7, color: 'var(--text-primary)' }}>
                 <p style={{ marginBottom: '14px' }}>
                   {diagnosis?.root_cause ||
-                    `Degradation detected matching canonical failure signature for ${incident.failure_type}. Anomaly breached production threshold bounds.`}
+                    `Degradation detected matching canonical failure signature for ${incident.failure_type || 'UNKNOWN'}. Anomaly breached production threshold bounds.`}
                 </p>
 
                 <div style={{ background: 'var(--bg-canvas)', padding: '14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
@@ -301,7 +301,7 @@ export const IncidentDetailPage: React.FC = () => {
                   </div>
                   <ul style={{ paddingLeft: '18px', color: 'var(--text-secondary)' }}>
                     {(diagnosis?.evidence || [
-                      `Telemetry breach matching ${incident.failure_type}`,
+                      `Telemetry breach matching ${incident.failure_type || 'UNKNOWN'}`,
                       `Ensemble confidence score: ${(((incident.confidence ?? 0.92)) * 100).toFixed(1)}%`,
                     ]).map((ev, i) => (
                       <li key={i} className="mono" style={{ fontSize: '12px', marginBottom: '4px' }}>
@@ -377,7 +377,16 @@ export const IncidentDetailPage: React.FC = () => {
                         (m.metric_name === 'latency' && m.value > 2.2) ||
                         (m.metric_name === 'error_rate' && m.value > 0.02) ||
                         (m.metric_name === 'retrieval_score' && m.value < 0.85) ||
-                        (m.metric_name === 'tool_failure_rate' && m.value > 0.03);
+                        (m.metric_name === 'tool_failure_rate' && m.value > 0.03) ||
+                        (m.metric_name === 'hallucination_score' && m.value > 0.05) ||
+                        (m.metric_name === 'answer_relevance' && m.value < 0.88) ||
+                        (m.metric_name === 'cpu_usage' && m.value > 60.0) ||
+                        (m.metric_name === 'cpu_utilization' && m.value > 0.60) ||
+                        (m.metric_name === 'memory_usage' && m.value > 65.0) ||
+                        (m.metric_name === 'api_success_rate' && m.value < 0.98) ||
+                        ((m.metric_name === 'token_usage' || m.metric_name === 'token_count') && m.value > 1200.0) ||
+                        (m.metric_name === 'cost_per_query' && m.value > 0.05) ||
+                        (m.metric_name === 'loop_count' && m.value > 1.0);
 
                       return (
                         <tr key={idx}>
@@ -479,8 +488,19 @@ export const IncidentDetailPage: React.FC = () => {
                 <span style={{ fontWeight: 600 }}>{approvalResult.message}</span>
               </div>
               <div className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Execution Status: <span style={{ color: '#10b981' }}>{approvalResult.execution_status}</span> | Verification:{' '}
-                <span style={{ color: '#10b981' }}>{JSON.stringify(approvalResult.verification)}</span>
+                Execution Status:{' '}
+                <span style={{ color: approvalResult.execution_status === 'executed' ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                  {approvalResult.execution_status}
+                </span>{' '}
+                | Verification:{' '}
+                <span style={{ color: (approvalResult.verification?.verified || approvalResult.verification?.recovery_verified) ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                  {(approvalResult.verification?.verified || approvalResult.verification?.recovery_verified) ? 'VERIFIED (PASS)' : 'FAILED'}
+                </span>
+                {approvalResult.verification?.details && (
+                  <span style={{ marginLeft: '8px', color: 'var(--text-secondary)' }}>
+                    — {approvalResult.verification.details}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -530,14 +550,20 @@ export const IncidentDetailPage: React.FC = () => {
                       side_effects: 'Switches to fallback LLM provider; marginal latency variation',
                     },
                   ]).map((strat: any, i: number) => {
-                    const isRecommended =
-                      strat.strategy === recoveryOptions?.recommended_strategy?.strategy || i === 0;
+                    const stratName = strat.strategy || strat.action || 'Unknown Strategy';
+                    const recProb = strat.recovery_probability ?? strat.success_probability ?? 0;
+                    const riskVal = strat.risk || (typeof strat.risk_score === 'number' ? (strat.risk_score > 0.6 ? 'high' : strat.risk_score > 0.3 ? 'medium' : 'low') : 'low');
+                    const reversibilityVal = strat.reversibility || 'instant';
+                    const sideEffectsVal = strat.side_effects || strat.potential_impact || strat.rationale || '—';
+
+                    const recStrat = recoveryOptions?.recommended_strategy?.strategy || recoveryOptions?.recommended_strategy?.action;
+                    const isRecommended = (stratName && stratName === recStrat) || i === 0;
 
                     return (
                       <tr key={i} style={{ background: isRecommended ? 'rgba(59, 130, 246, 0.05)' : undefined }}>
                         <td>
                           <div className="mono" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {strat.strategy}
+                            {stratName}
                           </div>
                           {isRecommended && (
                             <span className="badge badge-info" style={{ marginTop: '4px', fontSize: '10px' }}>
@@ -558,25 +584,25 @@ export const IncidentDetailPage: React.FC = () => {
                             >
                               <div
                                 style={{
-                                  width: `${(((strat.recovery_probability ?? 0)) * 100).toFixed(0)}%`,
+                                  width: `${(recProb * 100).toFixed(0)}%`,
                                   height: '100%',
-                                  background: (strat.recovery_probability ?? 0) > 0.85 ? '#10b981' : '#f59e0b',
+                                  background: recProb > 0.85 ? '#10b981' : '#f59e0b',
                                 }}
                               ></div>
                             </div>
                             <span className="mono" style={{ fontWeight: 600 }}>
-                              {(((strat.recovery_probability ?? 0)) * 100).toFixed(0)}%
+                              {(recProb * 100).toFixed(0)}%
                             </span>
                           </div>
                         </td>
                         <td>
-                          <StatusBadge type="risk" value={strat.risk} />
+                          <StatusBadge type="risk" value={riskVal} />
                         </td>
                         <td className="mono" style={{ fontSize: '12px' }}>
-                          {strat.reversibility}
+                          {reversibilityVal}
                         </td>
                         <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          {strat.side_effects}
+                          {sideEffectsVal}
                         </td>
                       </tr>
                     );

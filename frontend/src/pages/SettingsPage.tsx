@@ -58,6 +58,7 @@ export const SettingsPage: React.FC = () => {
 
   const dbStatus = getStatusString(s.database, 'OK');
   const llmStatus = getStatusString(s.llm, 'NOT_CONFIGURED');
+  const llmModel = (s.llm as any)?.model || 'gemini-3.6-flash';
   const vectorStatus = getStatusString(s.vector_db, 'OK');
   const vectorPath = typeof s.vector_db === 'object' && s.vector_db?.path ? s.vector_db.path : './data/vector_store';
   const mcpStatus = getStatusString(s.mcp, 'ACTIVE (13 tools registered)');
@@ -124,7 +125,7 @@ export const SettingsPage: React.FC = () => {
           <div style={{ fontSize: '13px', lineHeight: 1.8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Default Model:</span>
-              <span className="mono" style={{ color: 'var(--text-primary)' }}>gemini-2.0-flash</span>
+              <span className="mono" style={{ color: 'var(--text-primary)' }}>{llmModel}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-muted)' }}>Status:</span>

@@ -28,7 +28,11 @@ def health():
         "environment": settings.ARGUS_ENV,
         "services": {
             "database": db_status,
-            "llm": {"status": "CONFIGURED" if settings.llm_configured else "NOT_CONFIGURED (fallback mode)"},
+            "llm": {
+                "status": "CONFIGURED" if settings.llm_configured else "NOT_CONFIGURED (fallback mode)",
+                "model": settings.LLM_MODEL or "gemini-3.6-flash",
+                "provider": settings.LLM_PROVIDER or "gemini",
+            },
             "langsmith": {"status": "CONNECTED" if settings.langsmith_configured else "NOT_CONFIGURED (local logging only)"},
             "redis": {"status": "CONFIGURED" if settings.redis_configured else "NOT_CONFIGURED (in-memory fallback)"},
             "vector_db": {"status": vector_db_status, "path": settings.VECTOR_DB_PATH},

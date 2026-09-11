@@ -15,12 +15,26 @@ class ApprovalRequest(BaseModel):
 class StrategyOption(BaseModel):
     id: str
     action: str
+    strategy: Optional[str] = None
     parameters: Dict[str, Any] = Field(default_factory=dict)
     success_probability: float = Field(ge=0.0, le=1.0)
+    recovery_probability: Optional[float] = None
     risk_score: float = Field(ge=0.0, le=1.0)
+    risk: Optional[str] = None
     reversibility: str
     rationale: str
     potential_impact: Optional[str] = None
+    side_effects: Optional[str] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.strategy:
+            self.strategy = self.action
+        if self.recovery_probability is None:
+            self.recovery_probability = self.success_probability
+        if not self.risk:
+            self.risk = "high" if self.risk_score > 0.6 else "medium" if self.risk_score > 0.3 else "low"
+        if not self.side_effects:
+            self.side_effects = self.potential_impact or self.rationale
 
 
 class RecoveryOptionsResponse(BaseModel):

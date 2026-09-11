@@ -121,20 +121,127 @@ def approve_recovery_action(
         db=db,
     )
 
-    # 2. Resume LangGraph thread via Command(resume=...)
+    # 2. Check if the LangGraph thread is currently halted at an in-memory interrupt
     config = {"configurable": {"thread_id": incident_id}}
-    try:
-        resume_cmd = Command(resume={"approved": True, "notes": notes, "actor": actor})
-        final_state = argus_graph.invoke(resume_cmd, config=config)
-        exec_res = final_state.get("execution_result", {})
-        verif_res = final_state.get("verification_result", {})
-        msg = f"Recovery approved by {actor} and executed via LangGraph."
-        exec_status = "executed" if exec_res.get("status") == "success" else "failed"
-    except Exception as e:
-        exec_res = {"status": "executed", "message": str(e)}
-        verif_res = {"recovery_verified": True}
-        exec_status = "executed"
-        msg = f"Recovery approved by {actor}."
+    thread_state = argus_graph.get_state(config)
+
+    metrics_dict = {s.metric_name: s.value for s in getattr(inc, "metrics", [])} if getattr(inc, "metrics", None) else simulation_engine.get_current_metrics()
+
+    if thread_state and thread_state.next:
+        # Resuming active in-memory LangGraph thread
+        try:
+            resume_cmd = Command(resume={"approved": True, "notes": notes, "actor": actor})
+            final_state = argus_graph.invoke(resume_cmd, config=config)
+            exec_res = final_state.get("execution_result", {})
+            verif_res = final_state.get("verification_result", {})
+            exec_status = "executed" if exec_res.get("status") == "success" else "failed"
+            msg = f"Recovery approved by {actor} and executed via LangGraph."
+        except Exception as e:
+            logger.error("Error resuming LangGraph thread %s: %s", incident_id, e)
+            exec_res = {"status": "error", "error": str(e)}
+            verif_res = {"recovery_verified": False, "verified": False, "reason": str(e), "before_metrics": metrics_dict}
+            exec_status = "failed"
+            msg = f"Recovery approved by {actor}, but execution encountered an error: {e}"
+    else:
+        # Thread not pre-halted in memory (e.g. server reboot, batch-seeded incident, or direct UI approval).
+        # Execute recovery action deterministically through the MCP tool layer per Phase 6 & 7:
+        try:
+            from app.database.models import RecoveryAction
+            rec_act = db.query(RecoveryAction).filter(RecoveryAction.incident_id == incident_id).order_by(RecoveryAction.created_at.desc()).first()
+            strat_action = rec_act.strategy if (rec_act and rec_act.strategy) else "execute_rollback"
+
+            # Parameters tailored to strategy
+            params = {"service_name": "core_service"}
+            if strat_action == "execute_rollback":
+                params["target_revision"] = "v1_stable"
+            elif strat_action == "switch_model":
+                params = {"target_provider": "gemini", "model": "gemini-1.5-pro"}
+            elif strat_action == "scale_replicas":
+                params = {"service_name": "core_service", "replicas": 5}
+            elif strat_action == "flush_cache":
+                params = {"cache_type": "all"}
+
+            strategy = {"action": strat_action, "parameters": params}
+
+            # Execute through MCP
+            from app.agents.recovery_agent import execute_recovery_action
+            exec_res = execute_recovery_action(
+                strategy=strategy,
+                approval_status="approved",
+                incident_id=incident_id,
+            )
+
+            is_success = (exec_res.get("status") == "success")
+            exec_status = "executed" if is_success else "failed"
+
+            # Verify post-recovery telemetry (Section 16)
+            engine = simulation_engine
+            if is_success:
+                engine.reset_to_normal()
+            post_metrics = engine.get_current_metrics()
+
+            from app.graph.graph import SLA_LIMITS
+            sla_passed = (
+                post_metrics.get("latency", 1.2) <= SLA_LIMITS["latency"]
+                and post_metrics.get("error_rate", 0.005) <= SLA_LIMITS["error_rate"]
+                and post_metrics.get("retrieval_score", 0.92) >= SLA_LIMITS["retrieval_score"]
+                and post_metrics.get("tool_failure_rate", 0.008) <= SLA_LIMITS["tool_failure_rate"]
+                and post_metrics.get("api_success_rate", 0.99) >= SLA_LIMITS["api_success_rate"]
+            )
+            verified = is_success and sla_passed
+            details_str = "Recovery verified: Telemetry returned to normal baseline SLA limits." if verified else "Post-recovery verification failed: Telemetry breaches SLA limits."
+
+            verif_res = {
+                "recovery_verified": verified,
+                "verified": verified,
+                "strategy": strat_action,
+                "execution_status": exec_status,
+                "details": details_str,
+                "before_metrics": metrics_dict,
+                "after_metrics": post_metrics,
+                "sla_checks": {
+                    "latency_pass": post_metrics.get("latency", 1.2) <= SLA_LIMITS["latency"],
+                    "error_rate_pass": post_metrics.get("error_rate", 0.005) <= SLA_LIMITS["error_rate"],
+                    "retrieval_pass": post_metrics.get("retrieval_score", 0.92) >= SLA_LIMITS["retrieval_score"],
+                    "tool_failure_pass": post_metrics.get("tool_failure_rate", 0.008) <= SLA_LIMITS["tool_failure_rate"],
+                    "api_success_pass": post_metrics.get("api_success_rate", 0.99) >= SLA_LIMITS["api_success_rate"],
+                },
+            }
+
+            # Update DB records
+            incident_service.update_incident(
+                incident_id=incident_id,
+                status="resolved" if verified else "open",
+                resolution_notes=details_str,
+                db=db,
+            )
+            recovery_service.update_recovery_action(
+                incident_id=incident_id,
+                approval_status="approved",
+                execution_status=exec_status,
+                result=details_str,
+                db=db,
+            )
+            msg = f"Recovery approved by {actor} and executed via MCP."
+        except Exception as e:
+            logger.error("Error executing recovery action for %s: %s", incident_id, e)
+            exec_res = {"status": "error", "error": str(e)}
+            verif_res = {
+                "recovery_verified": False,
+                "verified": False,
+                "reason": f"Execution failed: {e}",
+                "before_metrics": metrics_dict,
+            }
+            exec_status = "failed"
+            msg = f"Recovery approved by {actor}, but execution failed: {e}"
+
+    if not verif_res:
+        verif_res = {
+            "recovery_verified": (exec_status == "executed"),
+            "verified": (exec_status == "executed"),
+            "before_metrics": metrics_dict,
+            "details": "Verification evaluated.",
+        }
 
     return ApprovalResponse(
         incident_id=incident_id,
@@ -248,33 +355,84 @@ def get_incident_diagnosis(
 ):
     """
     Returns the diagnosed root cause and grounded runbook citations for an incident.
+    Handles unanalyzed or UNKNOWN category incidents gracefully with informative state.
     """
     inc = incident_service.get_incident(incident_id=incident_id, db=db)
     if not inc:
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
 
-    from app.rag.retriever import semantic_retriever
-    query = f"{inc.failure_type}: {inc.title} {inc.description}"
-    retrieved = semantic_retriever.retrieve(query=query, k=3)
+    from app.rag.retriever import retrieve
+    query = f"{inc.failure_type or 'UNKNOWN'}: {inc.title} {inc.description or ''}"
+    try:
+        retrieved = retrieve(query=query, k=3)
+    except Exception as e:
+        logger.warning(f"ChromaDB retrieval exception for incident {incident_id}: {e}")
+        retrieved = []
+
+    # Check for existing Diagnosis record in DB
+    from app.database.models import Diagnosis
+    diag_record = db.query(Diagnosis).filter(Diagnosis.incident_id == incident_id).first()
+
+    f_type = inc.failure_type or "UNKNOWN"
+    conf = inc.confidence if inc.confidence is not None else 0.50
+
+    citations = [
+        {
+            "source": r.get("source", "unknown"),
+            "relevance_score": r.get("relevance_score", 0.70),
+            "document": r.get("document", "Runbook"),
+            "chunk": r.get("chunk", ""),
+        }
+        for r in retrieved
+    ]
+
+    if diag_record:
+        import ast
+        evidence_list = []
+        if diag_record.evidence:
+            try:
+                if diag_record.evidence.startswith("["):
+                    evidence_list = ast.literal_eval(diag_record.evidence)
+                else:
+                    evidence_list = [diag_record.evidence]
+            except Exception:
+                evidence_list = [diag_record.evidence]
+        if not evidence_list:
+            evidence_list = [
+                f"Anomalous metric deviation matching {f_type}",
+                f"Diagnostic confidence score: {(diag_record.confidence or conf):.2f}",
+            ]
+
+        return {
+            "incident_id": incident_id,
+            "failure_type": f_type,
+            "confidence": diag_record.confidence if diag_record.confidence is not None else conf,
+            "root_cause": diag_record.root_cause,
+            "evidence": evidence_list,
+            "citations": citations,
+        }
+
+    # Incident has not been diagnosed or is UNKNOWN anomaly
+    if f_type == "UNKNOWN":
+        root_cause = "Analysis pending: Telemetry anomaly detected but does not match canonical failure signatures. Grounded runbook references retrieved below for operator manual review."
+        evidence = [
+            f"Unclassified telemetry anomaly detected (confidence: {conf:.2f})",
+            "Awaiting automated clustering or operator triage via Recovery Simulator",
+        ]
+    else:
+        root_cause = f"Operational degradation identified: {f_type} condition violating SLA baseline."
+        evidence = [
+            f"Anomalous metric deviation matching {f_type}",
+            f"Telemetry breach confidence score: {conf:.2f}",
+        ]
 
     return {
         "incident_id": incident_id,
-        "failure_type": inc.failure_type,
-        "confidence": inc.confidence or 0.92,
-        "root_cause": f"Operational degradation identified: {inc.failure_type} condition violating SLA baseline.",
-        "evidence": [
-            f"Anomalous metric deviation matching {inc.failure_type}",
-            f"Telemetry breach confidence score: {inc.confidence:.2f}",
-        ],
-        "citations": [
-            {
-                "source": r.source,
-                "relevance_score": r.relevance_score,
-                "document": r.document,
-                "chunk": r.chunk,
-            }
-            for r in retrieved
-        ],
+        "failure_type": f_type,
+        "confidence": conf,
+        "root_cause": root_cause,
+        "evidence": evidence,
+        "citations": citations,
     }
 
 

@@ -318,7 +318,12 @@ def node_verification(state: ArgusState) -> Dict[str, Any]:
 
     verification_result = {
         "recovery_verified": verified,
+        "verified": verified,
         "force_failure": simulated_fail,
+        "strategy": exec_result.get("tool") or strategy.get("action", "unknown"),
+        "execution_status": action_status or ("executed" if verified else "failed"),
+        "before_metrics": before_metrics,
+        "after_metrics": post_metrics if (action_status == "success" and not simulated_fail) else before_metrics,
         "details": msg,
     }
 

@@ -162,44 +162,57 @@ def run():
         confidence = pred.get("confidence", 0.92)
         evidence = pred.get("evidence", [])
 
-        # 3. Create incident record in DB
+        # 3. Create or update incident record in DB
         created_at = now - timedelta(minutes=(len(INCIDENT_SPECS) - i + 1) * 3)
         resolved_at = created_at + timedelta(seconds=42)
 
         with db_session() as session:
-            inc = Incident(
-                id=str(uuid.uuid4()),
-                title=f"[Simulated] {spec['title']}",
-                description=f"Automated incident generated for {classified_fault} evaluation battery.",
-                severity=spec["severity"],
-                status="resolved",
-                failure_type=classified_fault,
-                confidence=confidence,
-                created_at=created_at,
-                resolved_at=resolved_at,
-            )
-            session.add(inc)
+            title = f"[Simulated] {spec['title']}"
+            inc = session.query(Incident).filter(Incident.title == title).first()
+            if inc:
+                inc.failure_type = classified_fault
+                inc.confidence = confidence
+                inc.severity = spec["severity"]
+                # Update diagnosis if present
+                diag = session.query(Diagnosis).filter(Diagnosis.incident_id == inc.id).first()
+                if diag:
+                    diag.confidence = confidence
+                    diag.root_cause = f"Degradation signature confirmed as {classified_fault} via telemetry ensemble."
+                    diag.evidence = str(evidence)
+            else:
+                inc = Incident(
+                    id=str(uuid.uuid4()),
+                    title=title,
+                    description=f"Automated incident generated for {classified_fault} evaluation battery.",
+                    severity=spec["severity"],
+                    status="resolved",
+                    failure_type=classified_fault,
+                    confidence=confidence,
+                    created_at=created_at,
+                    resolved_at=resolved_at,
+                )
+                session.add(inc)
 
-            # Snapshots
-            for k, v in m.items():
-                session.add(MetricSnapshot(
+                # Snapshots
+                for k, v in m.items():
+                    session.add(MetricSnapshot(
+                        id=str(uuid.uuid4()),
+                        incident_id=inc.id,
+                        metric_name=k,
+                        value=float(v),
+                        timestamp=created_at,
+                    ))
+
+                # Diagnosis
+                diag = Diagnosis(
                     id=str(uuid.uuid4()),
                     incident_id=inc.id,
-                    metric_name=k,
-                    value=float(v),
-                    timestamp=created_at,
-                ))
-
-            # Diagnosis
-            diag = Diagnosis(
-                id=str(uuid.uuid4()),
-                incident_id=inc.id,
-                root_cause=f"Degradation signature confirmed as {classified_fault} via telemetry ensemble.",
-                confidence=confidence,
-                evidence=str(evidence),
-                created_at=created_at + timedelta(seconds=12),
-            )
-            session.add(diag)
+                    root_cause=f"Degradation signature confirmed as {classified_fault} via telemetry ensemble.",
+                    confidence=confidence,
+                    evidence=str(evidence),
+                    created_at=created_at + timedelta(seconds=12),
+                )
+                session.add(diag)
 
             # Recovery Plan
             state = {

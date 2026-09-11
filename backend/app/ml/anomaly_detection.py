@@ -162,7 +162,8 @@ class AnomalyDetector:
             # Scale confidence with z-score and Isolation Forest distance
             z_conf = 1.0 / (1.0 + math.exp(-0.8 * (max_z - 2.0)))
             if_conf = 1.0 / (1.0 + math.exp(15.0 * if_score))
-            confidence = round(min(0.99, max(0.70, 0.65 * z_conf + 0.35 * if_conf)), 2)
+            raw_conf = 0.65 * z_conf + 0.35 * if_conf
+            confidence = round(min(0.99, max(0.55, raw_conf)), 2)
 
             # Assign severity based on impacted metrics and magnitude of degradation
             err = metrics.get("error_rate", 0.0)
