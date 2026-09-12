@@ -29,7 +29,7 @@ export const Navbar: React.FC = () => {
       else if (cur.cost_per_query > 0.08) setActiveFault('COST SPIKE');
       else setActiveFault(null);
 
-      const incs = await api.getIncidents(200);
+      const incs = await api.getIncidents(100);
       const unresolved = incs.filter(
         (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
       ).length;
@@ -41,9 +41,9 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     fetchStatus();
-    const timer = setInterval(fetchStatus, 3000);
+    const timer = setInterval(fetchStatus, 4000);
     return () => clearInterval(timer);
-  }, [location.pathname]);
+  }, []);
 
   const handleReset = async () => {
     setIsResetting(true);

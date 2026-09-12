@@ -25,7 +25,7 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 @router.get("", response_model=List[IncidentResponse])
 def list_incidents(
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     """
