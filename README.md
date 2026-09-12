@@ -27,19 +27,19 @@ GenAI pipelines fail in ways fundamentally distinct from traditional software se
 
 | Failure Archetype | Runtime Symptoms | Real Root Cause |
 | :--- | :--- | :--- |
-| **LLM Provider Failure** | Error rate spikes ($>2.0\%$), truncated JSON, provider 500s | Upstream provider outage, rate limits, schema constraint violation, context exhaustion |
-| **RAG Embedding Degradation** | Retrieval score drops ($<0.85$), hallucination index surges | Incompatible embedding model deployments, index corruption, chunk fragmentation |
-| **Tool Execution Cascade** | Tool failure rate spikes ($>3.0\%$), downstream 502s | Breaking schema changes, parameter mismatch, API token invalidation, rate limits |
-| **Runaway Cost / Token Spike** | Token usage surges ($>1500$/query), query cost exceeds $\$0.05$ | Unbounded chat context accumulation, recursive chain loops, runaway prompt expansions |
-| **Circular Agent Reasoning Loop** | Latency $>10\text{s}$, loop count $>0$, CPU saturation | ReAct reflection stagnation without termination thresholds or progress criteria |
-| **Latency Contention Spike** | Latency $>2.2\text{s}$, event loop delays, pool exhaustion | Thread pool contention, database pool starvation, blocking synchronous network calls |
+| **LLM Provider Failure** | Error rate spikes (>2.0%), truncated JSON, provider 500s | Upstream provider outage, rate limits, schema constraint violation, context exhaustion |
+| **RAG Embedding Degradation** | Retrieval score drops (<0.85), hallucination index surges | Incompatible embedding model deployments, index corruption, chunk fragmentation |
+| **Tool Execution Cascade** | Tool failure rate spikes (>3.0%), downstream 502s | Breaking schema changes, parameter mismatch, API token invalidation, rate limits |
+| **Runaway Cost / Token Spike** | Token usage surges (>1500/query), query cost exceeds USD 0.05 | Unbounded chat context accumulation, recursive chain loops, runaway prompt expansions |
+| **Circular Agent Reasoning Loop** | Latency > 10s, loop count > 0, CPU saturation | ReAct reflection stagnation without termination thresholds or progress criteria |
+| **Latency Contention Spike** | Latency > 2.2s, event loop delays, pool exhaustion | Thread pool contention, database pool starvation, blocking synchronous network calls |
 
 ---
 
 ## 3. Solution
 
 **ARGUS** bridges the gap between observability and autonomous remediation:
-1. **Telemetry & Statistical Anomaly Ensemble**: Continuously monitors 13 operational metrics, combining rolling statistical Z-scores ($2.8\sigma$) with multivariate Isolation Forests to catch subtle multi-dimensional anomalies before hard outages occur.
+1. **Telemetry & Statistical Anomaly Ensemble**: Continuously monitors 13 operational metrics, combining rolling statistical Z-scores (2.8σ) with multivariate Isolation Forests to catch subtle multi-dimensional anomalies before hard outages occur.
 2. **Grounded Diagnosis via Semantic RAG**: Queries an embedded ChromaDB collection of operational runbooks using local ONNX dense embeddings (`all-MiniLM-L6-v2`) without external embedding API cost or network dependencies.
 3. **Counterfactual Recovery Simulation**: Evaluates candidate recovery strategies using empirical probability distributions, risk blast-radius scoring, and reversibility bounds rather than blind execution.
 4. **Human-in-the-Loop Approval Gate**: Halts execution using native LangGraph thread interrupts for any action classified as medium or high risk, requiring explicit operator sign-off.
@@ -103,11 +103,11 @@ graph TD
 The autonomous lifecycle operates in 8 sequential, self-verifying stages:
 
 1. **Ingest & Stream**: Telemetry ticks are generated or ingested into the sliding-window buffer (last 120 points).
-2. **Detect Anomaly**: The anomaly detector evaluates rolling statistical variance ($2.8\sigma$) alongside the Isolation Forest decision boundary.
+2. **Detect Anomaly**: The anomaly detector evaluates rolling statistical variance (2.8σ) alongside the Isolation Forest decision boundary.
 3. **Classify Incident**: When anomalous deviation occurs, the failure classifier determines the fault mode, assigns severity, and persists an incident to PostgreSQL.
 4. **Retrieve Runbooks**: `RAGRetrieval` queries ChromaDB using local ONNX embeddings, diversifying results across distinct source documents to retrieve authoritative operational runbooks.
 5. **Diagnose Root Cause**: `DiagnosisAgent` synthesizes telemetry evidence with retrieved runbook chunks via Google Gemini (`gemini-3.6-flash`), citing runbook sections.
-6. **Simulate Recovery**: `RecoveryAgent` counterfactually scores recovery options by computing $P(\text{recovery})$, risk blast radius, and expected utility.
+6. **Simulate Recovery**: `RecoveryAgent` counterfactually scores recovery options by computing P(recovery), risk blast radius, and expected utility.
 7. **Gate & Execute via MCP**: If the selected action carries medium or high risk, LangGraph halts execution at an `interrupt()`. Upon operator approval, the action executes via standardized MCP tools.
 8. **Verify & Learn**: The verification node checks live telemetry against SLA thresholds. When verified, `PostmortemAgent` indexes the resolution and appends to the fine-tuning dataset.
 
@@ -178,7 +178,7 @@ ARGUS implements a compliant Model Context Protocol (MCP) server containing 13 s
 
 - **Local ONNX Embedding Model**: Uses `all-MiniLM-L6-v2` via ChromaDB’s local ONNX embedding runtime. Generates 384-dimensional dense vectors locally with zero external API fees, zero quota limits, and sub-15ms vectorization.
 - **Runbook Knowledge Base**: Pre-seeded with 10 operational runbooks (`RB-001` through `RB-010`) covering Latency Spikes, LLM Failures, RAG Degradation, Tool Cascades, Cost Explosions, Agent Reasoning Loops, Upstream Contention, Memory Leaks, and Unknown Anomalies.
-- **Source Diversification**: Retrieval queries a candidate pool ($4 \times k$) and selects the highest-scoring chunk per distinct source file, preventing citations from collapsing into a single document.
+- **Source Diversification**: Retrieval queries a candidate pool (4 × k) and selects the highest-scoring chunk per distinct source file, preventing citations from collapsing into a single document.
 
 ---
 
@@ -190,14 +190,14 @@ The benchmark suite (`app/evaluation/benchmark.py`) rigorously compares the v1 R
 
 | Evaluation Metric | v1 Rule-Based Baseline | v2 ARGUS LangGraph Platform | Delta / Improvement |
 | :--- | :---: | :---: | :---: |
-| **Detection F1 Score** | $0.875$ | $\mathbf{0.973}$ | $+9.8\%$ |
-| **Detection Accuracy** | $81.8\%$ | $\mathbf{95.5\%}$ | $+13.6\%$ |
-| **Detection Recall** | $77.8\%$ | $\mathbf{100.0\%}$ | $+22.2\%$ |
-| **Diagnosis Accuracy** | $45.5\%$ | $\mathbf{100.0\%}$ | $+54.5\%$ |
-| **RAG Retrieval Score** | *N/A (No RAG)* | $\mathbf{0.585}$ | $+0.585$ |
-| **Recovery Success Rate** | $16.7\%$ | $\mathbf{100.0\%}$ | $+83.3\%$ |
-| **Unsafe Action Rate** | $33.3\%$ | $\mathbf{0.0\%}$ | $-33.3\%$ *(Zero Unsafe Actions)* |
-| **Mean Time to Recovery (MTTR)** | $230.8\text{s}$ | $\mathbf{42.0\text{s}}$ | $\mathbf{-188.8\text{s}}$ *(4.5× Faster)* |
+| **Detection F1 Score** | 0.875 | **0.973** | +9.8% |
+| **Detection Accuracy** | 81.8% | **95.5%** | +13.6% |
+| **Detection Recall** | 77.8% | **100.0%** | +22.2% |
+| **Diagnosis Accuracy** | 45.5% | **100.0%** | +54.5% |
+| **RAG Retrieval Score** | *N/A (No RAG)* | **0.585** | +0.585 |
+| **Recovery Success Rate** | 16.7% | **100.0%** | +83.3% |
+| **Unsafe Action Rate** | 33.3% | **0.0%** | -33.3% *(Zero Unsafe Actions)* |
+| **Mean Time to Recovery (MTTR)** | 230.8s | **42.0s** | **-188.8s** *(4.5× Faster)* |
 
 > [!NOTE]
 > **Evaluation Honesty Caveat**: The 100% diagnosis accuracy and 100% recovery success rate reflect performance on in-distribution synthetic scenarios where the ground-truth label matches the injected fault type — this validates that the end-to-end pipeline works correctly on canonical fault archetypes, not out-of-distribution or ambiguous real-world accuracy, which would be expected to be lower.
@@ -210,12 +210,12 @@ ARGUS includes a simulation engine modeling 6 canonical failure modes with reali
 
 | Fault Mode | Injected Telemetry Signature | Breached SLA Targets |
 | :--- | :--- | :--- |
-| **`LATENCY_SPIKE`** | Latency: $\mu=8.5\text{s}$, CPU: $\mu=75.0\%$, API Success: $\mu=91.0\%$ | `latency > 2.20s`, `api_success_rate < 0.980` |
-| **`LLM_FAILURE`** | Error Rate: $\mu=28.0\%$, API Success: $\mu=70.0\%$, Latency: $\mu=4.8\text{s}$ | `error_rate > 0.020`, `api_success_rate < 0.980` |
-| **`RAG_DEGRADATION`** | Retrieval Score: $\mu=0.48$, Hallucination: $\mu=0.55$, Tokens: $\mu=1450$ | `retrieval_score < 0.850`, `hallucination_score > 0.100` |
-| **`TOOL_FAILURE`** | Tool Failure Rate: $\mu=42.0\%$, Error Rate: $\mu=18.0\%$ | `tool_failure_rate > 0.030`, `error_rate > 0.020` |
-| **`COST_SPIKE`** | Token Usage: $\mu=2900$, Request Volume: $\mu=190\text{ rps}$ | `token_usage > 1500`, `request_volume > 100` |
-| **`AGENT_LOOP`** | Latency: $\mu=11.5\text{s}$, CPU: $\mu=92.0\%$, Loop Count: $4$ | `loop_count > 0`, `latency > 2.20s`, `cpu_usage > 80%` |
+| **`LATENCY_SPIKE`** | Latency: μ=8.5s, CPU: μ=75.0%, API Success: μ=91.0% | `latency > 2.20s`, `api_success_rate < 0.980` |
+| **`LLM_FAILURE`** | Error Rate: μ=28.0%, API Success: μ=70.0%, Latency: μ=4.8s | `error_rate > 0.020`, `api_success_rate < 0.980` |
+| **`RAG_DEGRADATION`** | Retrieval Score: μ=0.48, Hallucination: μ=0.55, Tokens: μ=1450 | `retrieval_score < 0.850`, `hallucination_score > 0.100` |
+| **`TOOL_FAILURE`** | Tool Failure Rate: μ=42.0%, Error Rate: μ=18.0% | `tool_failure_rate > 0.030`, `error_rate > 0.020` |
+| **`COST_SPIKE`** | Token Usage: μ=2900, Request Volume: μ=190 rps | `token_usage > 1500`, `request_volume > 100` |
+| **`AGENT_LOOP`** | Latency: μ=11.5s, CPU: μ=92.0%, Loop Count: 4 | `loop_count > 0`, `latency > 2.20s`, `cpu_usage > 80%` |
 
 ---
 
@@ -254,8 +254,8 @@ ARGUS includes a simulation engine modeling 6 canonical failure modes with reali
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/argus-ai/argus.git
-cd argus
+git clone https://github.com/harishkryadav0506-cpu/argus-ai-reliability-platform.git
+cd argus-ai-reliability-platform
 ```
 
 ### 2. Configure Environment (`backend/.env`)
@@ -300,7 +300,7 @@ docker-compose up --build
 1. Open [http://localhost:3000](http://localhost:3000).
 2. Click the purple **"Run ARGUS Demo (Section 29)"** button in the header.
 3. Watch the real-time 14-step timeline progress through:
-   *Healthy Baseline $\to$ Inject RAG Degradation $\to$ ML Anomaly Detected $\to$ Incident Registered $\to$ Telemetry Collected $\to$ Root Cause Diagnosed $\to$ Runbook Retrieved $\to$ Recovery Simulated $\to$ Risk Calculated $\to$ Human Approval Requested $\to$ MCP Executed $\to$ Telemetry Verified $\to$ Evaluated $\to$ Postmortem Indexed.*
+   *Healthy Baseline → Inject RAG Degradation → ML Anomaly Detected → Incident Registered → Telemetry Collected → Root Cause Diagnosed → Runbook Retrieved → Recovery Simulated → Risk Calculated → Human Approval Requested → MCP Executed → Telemetry Verified → Evaluated → Postmortem Indexed.*
 
 ### Method B: Manual Fault Injection & Recovery Flow
 1. Navigate to **Simulation** (`/simulation`) and click **"Inject Mode"** on any fault card (e.g. `LATENCY_SPIKE`).
@@ -369,7 +369,7 @@ Running `scripts/run_benchmark.py` evaluates both the v1 rule-based baseline and
 The ARGUS platform underwent two rigorous rounds of comprehensive manual QA testing and regression auditing:
 
 1. **Initial QA Pass**: An 18-item audit identified foundational bugs across the stack, including:
-   - **Confidence Metric Clustering**: The batch incident generator had bypassed the live ensemble classifier, artificially assigning identical capped confidence scores ($98\%$) to disparate faults. Fixed by unifying all creation paths through the dual-model ensemble blend.
+   - **Confidence Metric Clustering**: The batch incident generator had bypassed the live ensemble classifier, artificially assigning identical capped confidence scores (98%) to disparate faults. Fixed by unifying all creation paths through the dual-model ensemble blend.
    - **MCP Execution Without Thread Checkpoint**: Clicking human approval on server-rebooted incidents threw errors because the in-memory LangGraph thread had expired. Fixed by architecting the dual-path execution layer.
    - **Data Serialization & Label Alignment**: Corrected fine-tuning dataset export serialization from strings to structured JSON objects (`{"recovery_verified": true}`) and disambiguated live vs. benchmark RAG retrieval labels.
 2. **Follow-Up QA Pass & Regression Catch**: The second QA round audited the system under live stress testing, specifically catching a regression introduced by the team's own earlier fix:
