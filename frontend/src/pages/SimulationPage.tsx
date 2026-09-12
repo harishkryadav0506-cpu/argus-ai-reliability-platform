@@ -97,8 +97,18 @@ export const SimulationPage: React.FC = () => {
 
   const fetchMetrics = async () => {
     try {
-      const data = await api.getMetrics(5);
+      const [data, statusData] = await Promise.all([
+        api.getMetrics(5),
+        api.getSimulationStatus().catch(() => null),
+      ]);
       setCurrentMetrics(data.current);
+      if (statusData) {
+        if (statusData.is_fault_active && statusData.active_fault) {
+          setActiveFault(statusData.active_fault);
+        } else if (!statusData.is_fault_active && activeFault && !statusMessage?.includes('Fault injected')) {
+          setActiveFault(null);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -167,14 +177,47 @@ export const SimulationPage: React.FC = () => {
     }
   };
 
-  const cur = currentMetrics || {
+  const cur: any = currentMetrics || {
     latency: 1.1,
     error_rate: 0.005,
     retrieval_score: 0.92,
     tool_failure_rate: 0.01,
     cost_per_query: 0.02,
     loop_count: 0,
+    hallucination_score: 0.03,
+    answer_relevance: 0.92,
+    api_success_rate: 0.995,
+    token_usage: 500,
+    token_count: 500,
+    cpu_usage: 35,
+    cpu_utilization: 0.35,
   };
+
+  // Complete SLA threshold evaluation matching the metric cards & canonical fault signatures
+  const isLatencyBreach = (cur.latency ?? 0) > 2.2;
+  const isErrorRateBreach = (cur.error_rate ?? 0) > 0.02;
+  const isRetrievalBreach = (cur.retrieval_score ?? 1) < 0.85;
+  const isToolFailureBreach = (cur.tool_failure_rate ?? 0) > 0.03;
+  const isCostBreach = (cur.cost_per_query ?? 0) > 0.05;
+  const isHallucinationBreach = (cur.hallucination_score ?? 0) > 0.05 || (cur.answer_relevance !== undefined && cur.answer_relevance < 0.88);
+  const isLoopBreach = (cur.loop_count ?? 0) > 1;
+  const isApiSuccessBreach = cur.api_success_rate !== undefined && cur.api_success_rate < 0.98;
+  const isTokenBreach = (cur.token_usage ?? cur.token_count ?? 0) > 1500;
+  const isCpuBreach = (cur.cpu_usage ?? 0) > 60 || (cur.cpu_utilization ?? 0) > 0.60;
+
+  const breachedMetrics: string[] = [];
+  if (isRetrievalBreach) breachedMetrics.push('RAG Retrieval');
+  if (isLatencyBreach) breachedMetrics.push('Latency');
+  if (isErrorRateBreach) breachedMetrics.push('Error Rate');
+  if (isToolFailureBreach) breachedMetrics.push('Tool Failure');
+  if (isCostBreach) breachedMetrics.push('Cost/Query');
+  if (isHallucinationBreach) breachedMetrics.push('Hallucination');
+  if (isLoopBreach) breachedMetrics.push('Agent Loop');
+  if (isApiSuccessBreach) breachedMetrics.push('API Success');
+  if (isTokenBreach) breachedMetrics.push('Token Explosion');
+  if (isCpuBreach) breachedMetrics.push('CPU Load');
+
+  const isDegraded = Boolean(activeFault) || breachedMetrics.length > 0;
 
   return (
     <div>
@@ -251,10 +294,11 @@ export const SimulationPage: React.FC = () => {
         className="card"
         style={{
           marginBottom: '24px',
-          borderColor: activeFault ? '#ef4444' : '#10b981',
-          background: activeFault
+          borderColor: isDegraded ? '#ef4444' : '#10b981',
+          background: isDegraded
             ? 'linear-gradient(180deg, var(--bg-surface) 0%, rgba(239, 68, 68, 0.06) 100%)'
             : 'var(--bg-surface)',
+          boxShadow: isDegraded ? '0 0 15px rgba(239, 68, 68, 0.15)' : 'none',
         }}
       >
         <div className="card-header" style={{ borderBottom: 'none', paddingBottom: '0' }}>
@@ -264,51 +308,103 @@ export const SimulationPage: React.FC = () => {
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                background: activeFault ? '#ef4444' : '#10b981',
-                boxShadow: activeFault ? '0 0 8px #ef4444' : '0 0 8px #10b981',
+                background: isDegraded ? '#ef4444' : '#10b981',
+                boxShadow: isDegraded ? '0 0 8px #ef4444' : '0 0 8px #10b981',
               }}
             ></span>
             <h3 className="card-title">
-              Live Stream Status: {activeFault ? `FAULT ACTIVE (${activeFault})` : 'HEALTHY BASELINE'}
+              Live Stream Status:{' '}
+              {activeFault
+                ? `FAULT ACTIVE (${activeFault})`
+                : isDegraded
+                ? `DEGRADED (${breachedMetrics.join(', ')} SLA Breach)`
+                : 'HEALTHY BASELINE'}
             </h3>
           </div>
-          <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Polling every 2s
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isDegraded && (
+              <span className="badge badge-critical" style={{ fontSize: '11px', fontWeight: 600 }}>
+                DEGRADED
+              </span>
+            )}
+            <span className="mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Polling every 2s
+            </span>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginTop: '16px' }}>
-          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Latency</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.latency ?? 0) > 2.2 ? '#f87171' : '#f1f5f9' }}>
+          <div style={{
+            background: 'var(--bg-canvas)',
+            padding: '10px',
+            borderRadius: 'var(--radius-sm)',
+            border: isLatencyBreach ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Latency</span>
+              <span style={{ fontSize: '10px', color: isLatencyBreach ? '#f87171' : 'var(--text-muted)' }}>SLA &le; 2.2s</span>
+            </div>
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: isLatencyBreach ? '#f87171' : '#f1f5f9' }}>
               {(cur.latency ?? 0).toFixed(2)}s
             </div>
           </div>
 
-          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Error Rate</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.error_rate ?? 0) > 0.02 ? '#f87171' : '#f1f5f9' }}>
+          <div style={{
+            background: 'var(--bg-canvas)',
+            padding: '10px',
+            borderRadius: 'var(--radius-sm)',
+            border: isErrorRateBreach ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Error Rate</span>
+              <span style={{ fontSize: '10px', color: isErrorRateBreach ? '#f87171' : 'var(--text-muted)' }}>SLA &le; 2.0%</span>
+            </div>
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: isErrorRateBreach ? '#f87171' : '#f1f5f9' }}>
               {((cur.error_rate ?? 0) * 100).toFixed(1)}%
             </div>
           </div>
 
-          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RAG Retrieval</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.retrieval_score ?? 1) < 0.85 ? '#f87171' : '#f1f5f9' }}>
+          <div style={{
+            background: 'var(--bg-canvas)',
+            padding: '10px',
+            borderRadius: 'var(--radius-sm)',
+            border: isRetrievalBreach ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RAG Retrieval</span>
+              <span style={{ fontSize: '10px', color: isRetrievalBreach ? '#f87171' : 'var(--text-muted)' }}>SLA &ge; 0.850</span>
+            </div>
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: isRetrievalBreach ? '#f87171' : '#f1f5f9' }}>
               {(cur.retrieval_score ?? 0).toFixed(3)}
             </div>
           </div>
 
-          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tool Failure</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.tool_failure_rate ?? 0) > 0.03 ? '#f87171' : '#f1f5f9' }}>
+          <div style={{
+            background: 'var(--bg-canvas)',
+            padding: '10px',
+            borderRadius: 'var(--radius-sm)',
+            border: isToolFailureBreach ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tool Failure</span>
+              <span style={{ fontSize: '10px', color: isToolFailureBreach ? '#f87171' : 'var(--text-muted)' }}>SLA &le; 3.0%</span>
+            </div>
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: isToolFailureBreach ? '#f87171' : '#f1f5f9' }}>
               {((cur.tool_failure_rate ?? 0) * 100).toFixed(1)}%
             </div>
           </div>
 
-          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: 'var(--radius-sm)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Cost / Query</div>
-            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: (cur.cost_per_query ?? 0) > 0.05 ? '#f87171' : '#f1f5f9' }}>
+          <div style={{
+            background: 'var(--bg-canvas)',
+            padding: '10px',
+            borderRadius: 'var(--radius-sm)',
+            border: isCostBreach ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid transparent',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Cost / Query</span>
+              <span style={{ fontSize: '10px', color: isCostBreach ? '#f87171' : 'var(--text-muted)' }}>SLA &le; $0.050</span>
+            </div>
+            <div className="mono" style={{ fontSize: '16px', fontWeight: 700, color: isCostBreach ? '#f87171' : '#f1f5f9' }}>
               ${(cur.cost_per_query ?? 0).toFixed(3)}
             </div>
           </div>

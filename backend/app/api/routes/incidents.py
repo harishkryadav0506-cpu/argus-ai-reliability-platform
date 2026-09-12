@@ -3,6 +3,7 @@ ARGUS Incidents API Routes (Phase 2)
 
 Endpoints for querying and creating incidents.
 """
+from datetime import datetime, timezone
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -131,11 +132,12 @@ def approve_recovery_action(
         # Resuming active in-memory LangGraph thread
         try:
             resume_cmd = Command(resume={"approved": True, "notes": notes, "actor": actor})
-            final_state = argus_graph.invoke(resume_cmd, config=config)
             exec_res = final_state.get("execution_result", {})
             verif_res = final_state.get("verification_result", {})
+            strat_info = final_state.get("selected_strategy", {})
+            strat_name = strat_info.get("name") or strat_info.get("action") or exec_res.get("strategy") or "action"
             exec_status = "executed" if exec_res.get("status") == "success" else "failed"
-            msg = f"Recovery approved by {actor} and executed via LangGraph."
+            msg = f"Recovery ({strat_name}) approved by {actor} and executed via LangGraph."
         except Exception as e:
             logger.error("Error resuming LangGraph thread %s: %s", incident_id, e)
             exec_res = {"status": "error", "error": str(e)}
@@ -222,7 +224,7 @@ def approve_recovery_action(
                 result=details_str,
                 db=db,
             )
-            msg = f"Recovery approved by {actor} and executed via MCP."
+            msg = f"Recovery ({strat_action}) approved by {actor} and executed via MCP."
         except Exception as e:
             logger.error("Error executing recovery action for %s: %s", incident_id, e)
             exec_res = {"status": "error", "error": str(e)}
@@ -233,7 +235,7 @@ def approve_recovery_action(
                 "before_metrics": metrics_dict,
             }
             exec_status = "failed"
-            msg = f"Recovery approved by {actor}, but execution failed: {e}"
+            msg = f"Recovery ({strat_action}) approved by {actor}, but execution failed: {e}"
 
     if not verif_res:
         verif_res = {
@@ -322,6 +324,54 @@ def analyze_incident(
     try:
         config = {"configurable": {"thread_id": incident_id}}
         result = argus_graph.invoke(state_input, config=config)
+
+        # Persist Diagnosis to DB so GET /diagnosis returns it immediately
+        from app.database.models import Diagnosis, RecoveryAction
+        import json
+        import uuid
+
+        root_cause = result.get("root_cause")
+        if root_cause:
+            diag_rec = db.query(Diagnosis).filter(Diagnosis.incident_id == incident_id).first()
+            evidence_data = result.get("evidence", [])
+            evidence_json = json.dumps(evidence_data) if isinstance(evidence_data, list) else str(evidence_data)
+            diag_conf = float(result.get("failure_confidence", inc.confidence or 0.88))
+
+            if not diag_rec:
+                diag_rec = Diagnosis(
+                    id=str(uuid.uuid4()),
+                    incident_id=incident_id,
+                    root_cause=root_cause,
+                    evidence=evidence_json,
+                    confidence=diag_conf,
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(diag_rec)
+            else:
+                diag_rec.root_cause = root_cause
+                diag_rec.evidence = evidence_json
+                diag_rec.confidence = diag_conf
+
+            # Also persist RecoveryAction if strategy was selected
+            sel_strat = result.get("selected_strategy") or {}
+            strat_action = sel_strat.get("action") or "restart_service"
+            rec_rec = db.query(RecoveryAction).filter(RecoveryAction.incident_id == incident_id).first()
+            if not rec_rec:
+                rec_rec = RecoveryAction(
+                    id=str(uuid.uuid4()),
+                    incident_id=incident_id,
+                    strategy=strat_action,
+                    approval_status="pending" if result.get("approval_required", True) else "auto_approved",
+                    execution_status="pending",
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(rec_rec)
+            else:
+                rec_rec.strategy = strat_action
+                rec_rec.approval_status = "pending" if result.get("approval_required", True) else "auto_approved"
+
+            db.commit()
+
         return {
             "incident_id": incident_id,
             "status": "analysis_complete",

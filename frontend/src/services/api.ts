@@ -135,6 +135,9 @@ export const api = {
       method: 'POST',
     }),
 
+  getSimulationStatus: (): Promise<any> =>
+    fetchJson<any>('/api/simulation/status'),
+
   // Evaluation & Benchmark
   getBenchmark: (): Promise<BenchmarkResult> =>
     fetchJson<BenchmarkResult>('/api/evaluation/benchmark'),

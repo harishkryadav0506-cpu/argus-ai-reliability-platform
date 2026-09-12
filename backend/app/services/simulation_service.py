@@ -173,7 +173,7 @@ class SimulationEngine:
         cpu_usage = metrics.get("cpu_usage", 35.0)
         metrics["cpu_utilization"] = round(cpu_usage / 100.0, 4)
         metrics["cost_per_query"] = round(token_usage * 0.00003, 4)
-        metrics["loop_count"] = 4.0 if (self.is_fault_active and self._active_fault == FaultType.AGENT_LOOP) else 0.0
+        metrics["loop_count"] = 4 if (self.is_fault_active and self._active_fault == FaultType.AGENT_LOOP) else 0
 
         return metrics
 
@@ -227,14 +227,21 @@ class SimulationEngine:
             classification = self.classifier.classify(metrics, anomaly_res)
             fault_type = self._active_fault or classification["category"]
             severity = self._fault_severity or anomaly_res["severity"]
+            final_conf = classification["confidence"]
 
             affected_str = ", ".join(anomaly_res["affected_metrics"]) if anomaly_res["affected_metrics"] else "multivariate anomaly"
             title = f"{fault_type} Anomaly Detected: {affected_str}"
             evidence_summary = "; ".join(classification["evidence"]) if classification["evidence"] else "statistical divergence detected"
             desc = (
-                f"ML Anomaly Detector identified {severity} severity condition with {anomaly_res['confidence']:.0%} confidence. "
+                f"ML Anomaly Detector identified {severity} severity condition with {final_conf:.0%} confidence. "
                 f"Evidence: {evidence_summary}"
             )
+
+            # Item 4: filter out duplicate alias keys (token_count, cpu_utilization) when saving incident snapshot
+            canonical_snapshot_metrics = {
+                k: v for k, v in metrics.items()
+                if k not in ("token_count", "cpu_utilization")
+            }
 
             try:
                 incident_service.create_incident(
@@ -242,8 +249,8 @@ class SimulationEngine:
                     description=desc,
                     severity=severity,
                     failure_type=fault_type,
-                    confidence=classification["confidence"],
-                    metrics=metrics,
+                    confidence=final_conf,
+                    metrics=canonical_snapshot_metrics,
                 )
                 self._incident_triggered_for_current_fault = True
                 logger.warning("Incident automatically triggered via ML detection: %s", title)

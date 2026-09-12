@@ -8,6 +8,7 @@ interface MetricCardProps {
   isBreached?: boolean;
   history?: number[];
   icon?: React.ReactNode;
+  format?: 'integer' | 'decimal';
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -18,6 +19,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   isBreached,
   history = [],
   icon,
+  format,
 }) => {
   // Generate SVG points for mini sparkline
   const renderSparkline = () => {
@@ -69,7 +71,9 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           <span className="metric-value">
             {typeof value === 'number'
               ? isNaN(value)
-                ? '0.0'
+                ? '0'
+                : format === 'integer' || (label.toLowerCase().includes('count') && Number.isInteger(value))
+                ? Math.round(value).toString()
                 : value.toFixed(value < 10 ? 3 : 1)
               : (value ?? '—')}
           </span>

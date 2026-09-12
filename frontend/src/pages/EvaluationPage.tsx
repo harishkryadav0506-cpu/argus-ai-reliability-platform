@@ -85,13 +85,14 @@ export const EvaluationPage: React.FC = () => {
   ) => {
     const v1Num = Number(v1Val ?? 0);
     const v2Num = Number(v2Val ?? 0);
-    const v1Display = isPercentage ? `${(v1Num * 100).toFixed(1)}%` : v1Num.toFixed(3);
+    const isRag = label.includes('RAG');
+    const v1Display = isRag ? 'N/A' : (isPercentage ? `${(v1Num * 100).toFixed(1)}%` : v1Num.toFixed(3));
     const v2Display = isPercentage ? `${(v2Num * 100).toFixed(1)}%` : v2Num.toFixed(3);
     const delta = v2Num - v1Num;
-    const isImproved = invert ? delta < 0 : delta > 0;
+    const isImproved = isRag ? true : (invert ? delta < 0 : delta > 0);
 
     const maxScale = Math.max(v1Num, v2Num, 1.0);
-    const v1Width = `${Math.min((v1Num / maxScale) * 100, 100).toFixed(0)}%`;
+    const v1Width = isRag ? '0%' : `${Math.min((v1Num / maxScale) * 100, 100).toFixed(0)}%`;
     const v2Width = `${Math.min((v2Num / maxScale) * 100, 100).toFixed(0)}%`;
 
     return (
@@ -106,7 +107,9 @@ export const EvaluationPage: React.FC = () => {
               color: isImproved ? '#10b981' : '#94a3b8',
             }}
           >
-            {delta > 0 ? `+${(delta * (isPercentage ? 100 : 1)).toFixed(1)}${isPercentage ? '%' : ''}` : `${(delta * (isPercentage ? 100 : 1)).toFixed(1)}${isPercentage ? '%' : ''}`} ({isImproved ? 'IMPROVED' : 'STABLE'})
+            {isRag
+              ? `+${v2Num.toFixed(3)} (v2 ONLY)`
+              : (delta > 0 ? `+${(delta * (isPercentage ? 100 : 1)).toFixed(1)}${isPercentage ? '%' : ''}` : `${(delta * (isPercentage ? 100 : 1)).toFixed(1)}${isPercentage ? '%' : ''}`) + ` (${isImproved ? 'IMPROVED' : 'STABLE'})`}
           </span>
         </div>
 
@@ -256,7 +259,7 @@ export const EvaluationPage: React.FC = () => {
           {renderComparisonBar('Detection F1 Score', v1.detection_f1, v2.detection_f1)}
           {renderComparisonBar('Detection Recall', v1.detection_recall, v2.detection_recall, true)}
           {renderComparisonBar('Diagnosis Accuracy', v1.diagnosis_accuracy, v2.diagnosis_accuracy, true)}
-          {renderComparisonBar('RAG Retrieval Score', v1.rag_retrieval_score, v2.rag_retrieval_score)}
+          {renderComparisonBar('Benchmark RAG Retrieval Score', v1.rag_retrieval_score, v2.rag_retrieval_score)}
           {renderComparisonBar('Recovery Success Rate', v1.recovery_success_rate, v2.recovery_success_rate, true)}
           {renderComparisonBar('Unsafe Action Rate', v1.unsafe_action_rate, v2.unsafe_action_rate, true, true)}
         </div>
@@ -313,7 +316,7 @@ export const EvaluationPage: React.FC = () => {
               overflowY: 'auto',
             }}
           >
-            {`{"incident": "[HIGH] Latency Spike...", "evidence": "latency=2.85s...", "root_cause": "Event loop contention", "recovery": "restart_service", "verification": "recovery_verified: true"}`}
+            {`{"incident": "[HIGH] Latency Spike...", "evidence": "latency=2.85s...", "root_cause": "Event loop contention", "recovery": "restart_service", "verification": {"recovery_verified": true}}`}
           </div>
         </div>
       </div>

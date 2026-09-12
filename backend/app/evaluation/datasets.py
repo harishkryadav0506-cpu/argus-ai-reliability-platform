@@ -62,7 +62,7 @@ def generate_finetune_dataset(output_path: Path) -> List[Dict[str, Any]]:
                     "root_cause": diag.root_cause if diag else f"Degradation caused by {inc.failure_type} condition",
                     "evidence": diag.evidence if diag else f"Affected telemetry signatures matching {inc.failure_type}",
                     "recovery": rec.strategy if rec else f"Automated rollback/restart for {inc.failure_type}",
-                    "verification": "recovery_verified: true (telemetry returned within baseline SLA)",
+                    "verification": {"recovery_verified": True},
                 })
     except Exception as exc:
         logger.warning("Database unavailable during generate_finetune_dataset (%s); using in-memory store.", exc)
@@ -89,7 +89,7 @@ def generate_finetune_dataset(output_path: Path) -> List[Dict[str, Any]]:
                 "root_cause": f"Root cause diagnosed as {f_type}",
                 "evidence": f"Telemetry evidence supporting {f_type}",
                 "recovery": strat,
-                "verification": "recovery_verified: true",
+                "verification": {"recovery_verified": True},
             })
 
     # If no resolved incidents exist yet, bootstrap from initial baseline scenarios
@@ -117,7 +117,7 @@ def generate_finetune_dataset(output_path: Path) -> List[Dict[str, Any]]:
                     "root_cause": f"Root cause diagnosed as {f_type}",
                     "evidence": f"Affected telemetry signatures matching {f_type}",
                     "recovery": f"Automated remediation for {f_type}",
-                    "verification": "recovery_verified: true (telemetry returned within baseline SLA)",
+                    "verification": {"recovery_verified": True},
                 })
 
     # Format into Section 28 Schema:

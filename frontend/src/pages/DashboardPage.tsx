@@ -424,11 +424,12 @@ export const DashboardPage: React.FC = () => {
 
         <MetricCard
           label="Agent Loop Count"
-          value={cur.loop_count ?? 0}
+          value={Math.round(cur.loop_count ?? 0)}
           threshold="<= 1"
           isBreached={(cur.loop_count ?? 0) > 1}
           history={getMetricHistory('loop_count')}
           icon={<Repeat size={14} />}
+          format="integer"
         />
 
         <MetricCard

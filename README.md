@@ -1,103 +1,98 @@
 # ARGUS — Autonomous AI Reliability & Recovery Platform
 
-[![CI Pipeline](https://github.com/argus-ai/argus/actions/workflows/ci.yml/badge.svg)](https://github.com/argus-ai/argus/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-1C3C3C?logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Protocol-4A154B)](https://modelcontextprotocol.io/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 
-> **ARGUS** is an autonomous AI reliability, failure detection, and self-healing platform designed for production LLM, RAG, and agentic workflows. Built using **LangGraph**, **Model Context Protocol (MCP)**, **local ONNX semantic embeddings**, **statistical ML anomaly ensembles**, and **FastAPI**, ARGUS continuously monitors telemetry, identifies complex failure modes, evaluates counterfactual recovery strategies, gates risky operations with human-in-the-loop approvals, executes safe remediations through standardized tools, verifies post-recovery SLAs, and autonomously indexes postmortems for continuous learning.
-
----
-
-## Resume-Ready Project Overview
-
-> **ARGUS — Autonomous AI Reliability & Recovery Platform**: Engineered an enterprise-grade multi-agent reliability platform for production GenAI and RAG pipelines using Python, FastAPI, LangGraph, and Model Context Protocol (MCP). Implemented an ML ensemble (rolling Z-score + Isolation Forest + Logistic Classifier) that detects multivariate telemetry anomalies across 10 system dimensions with 96% F1 score. Architected a stateful 9-node LangGraph cyclic workflow integrating Google Gemini with local ONNX semantic RAG retrieval (`all-MiniLM-L6-v2` in ChromaDB) to diagnose root causes grounded in operational runbooks. Built a counterfactual recovery simulator computing empirical success probabilities and blast-radius scores, governed by native LangGraph `interrupt()` human approval gates and 13 allowlisted MCP tools with pre/post execution audit logging. Evaluated across 15 real simulated failure scenarios, demonstrating a 46.7% increase in diagnosis accuracy, 0% unsafe action execution, and a 180s reduction in Mean Time to Recovery (MTTR).
+> **ARGUS** is an autonomous AI reliability, failure detection, and self-healing platform engineered for production LLM, RAG, and agentic microservices. Powered by **LangGraph**, **Model Context Protocol (MCP)**, **statistical ML anomaly ensembles**, **local ONNX semantic RAG**, and **FastAPI**, ARGUS continuously monitors runtime telemetry, classifies subtle AI-specific failures, simulates counterfactual recoveries, gates high-risk remediations behind human approvals, executes actions via standardized tools, verifies post-recovery SLA baselines, and indexes postmortems for continuous organizational learning.
 
 ---
 
 ## 1. Problem
 
-Modern production systems increasingly rely on complex AI pipelines: LLMs, Retrieval-Augmented Generation (RAG) vector stores, multi-agent frameworks, and external tool integrations. However, traditional Application Performance Monitoring (APM) tools (e.g., Datadog, Prometheus, New Relic) treat AI pipelines like standard HTTP microservices:
-- They measure HTTP status codes and endpoint latency.
-- They have **zero awareness** of semantic degradation, embedding space drift, prompt explosion, hallucination rate, tool parameter drift, or circular agent loops.
-- When an AI failure occurs, engineers are paged at 3:00 AM to manually dig through vector DB segment files, decipher truncated model token responses, evaluate rollback trade-offs, and restart services without safety checks.
+Production AI applications (LLM pipelines, RAG systems, tool-using autonomous agents) are fundamentally probabilistic and distributed. Traditional Application Performance Monitoring (APM) tools (Datadog, New Relic, Prometheus) treat AI services like standard HTTP microservices:
+- They measure generic HTTP status codes and endpoint response times.
+- They have **zero visibility** into semantic degradation, vector embedding drift, silent hallucination spikes, prompt explosion, tool parameter drift, or recursive agent loops.
+- When an AI failure occurs, engineers are paged in the middle of the night to manually inspect vector store segments, decipher truncated model token responses, guess rollback trade-offs, and restart services without safety or SLA verification.
 
 ---
 
 ## 2. Why Existing AI Applications Fail
 
-GenAI systems suffer from failure modes unique to probabilistic models and high-dimensional semantic search:
+GenAI pipelines fail in ways fundamentally distinct from traditional software services:
 
-| Failure Mode | Symptoms | Root Cause |
+| Failure Archetype | Runtime Symptoms | Real Root Cause |
 | :--- | :--- | :--- |
-| **LLM Provider Degradation** | High error rate (>8%), truncated JSON output, timeouts | Upstream provider outage, schema constraint breach, context window exhaustion |
-| **Vector Embedding Drift** | Retrieval score drops (<0.65), hallucination index spikes | Incompatible embedding model deployments, corrupted HNSW segments, chunk fragmentation |
-| **Tool Execution Cascade** | Tool failure rate spikes (>15%), downstream 502 Bad Gateways | Upstream API schema breaking changes, parameter type mismatches, client rate-limit throttling |
-| **Runaway Token Explosion** | Token usage spikes (>3000/query), query cost exceeds $0.09 | Unbounded conversational context growth, recursive prompt chain loops |
-| **Circular Agent Loops** | Latency > 10s, loop counter > 3, CPU saturation (>85%) | ReAct reflection stagnation without progress criteria or termination thresholds |
-| **Upstream API Cascades** | 502/503 HTTP errors, intermittent token dropouts | Cloud provider gateway contention, quota exhaustion, circuit breaker failure |
+| **LLM Provider Failure** | Error rate spikes ($>2.0\%$), truncated JSON, provider 500s | Upstream provider outage, rate limits, schema constraint violation, context exhaustion |
+| **RAG Embedding Degradation** | Retrieval score drops ($<0.85$), hallucination index surges | Incompatible embedding model deployments, index corruption, chunk fragmentation |
+| **Tool Execution Cascade** | Tool failure rate spikes ($>3.0\%$), downstream 502s | Breaking schema changes, parameter mismatch, API token invalidation, rate limits |
+| **Runaway Cost / Token Spike** | Token usage surges ($>1500$/query), query cost exceeds $\$0.05$ | Unbounded chat context accumulation, recursive chain loops, runaway prompt expansions |
+| **Circular Agent Reasoning Loop** | Latency $>10\text{s}$, loop count $>0$, CPU saturation | ReAct reflection stagnation without termination thresholds or progress criteria |
+| **Latency Contention Spike** | Latency $>2.2\text{s}$, event loop delays, pool exhaustion | Thread pool contention, database pool starvation, blocking synchronous network calls |
 
 ---
 
 ## 3. Solution
 
-**ARGUS** solves this by providing closed-loop autonomous reliability:
-1. **Telemetry & Statistical Anomaly Ensemble**: Continuously monitors 10 critical operational dimensions and detects subtle multivariate anomalies before outright outages occur.
-2. **Grounded Diagnosis via Semantic RAG**: Queries an embedded vector store of real-world runbooks (grounded in LangChain, LlamaIndex, OpenAI, and ChromaDB postmortems) using local ONNX embeddings without external embedding API costs.
-3. **Counterfactual Recovery Simulator**: Simulates candidate remediation strategies ($P_{rec}$, risk level, reversibility, side effects) rather than blind execution.
-4. **Human-in-the-Loop Approval Gate**: Suspends execution using native LangGraph thread interrupts for any action classified as medium or high risk.
-5. **Model Context Protocol (MCP) Server**: Dispatches approved actions through standardized, allowlist-guarded MCP tools with immutable pre- and post-execution audit logging.
-6. **SLA Telemetry Verification & Bounded Retries**: Measures post-execution metrics against operational thresholds. If recovery fails, safely routes back to diagnosis (bounded to 3 iterations).
-7. **Experience Learning**: Automatically converts verified incident postmortems into retrievable historical context in ChromaDB.
+**ARGUS** bridges the gap between observability and autonomous remediation:
+1. **Telemetry & Statistical Anomaly Ensemble**: Continuously monitors 13 operational metrics, combining rolling statistical Z-scores ($2.8\sigma$) with multivariate Isolation Forests to catch subtle multi-dimensional anomalies before hard outages occur.
+2. **Grounded Diagnosis via Semantic RAG**: Queries an embedded ChromaDB collection of operational runbooks using local ONNX dense embeddings (`all-MiniLM-L6-v2`) without external embedding API cost or network dependencies.
+3. **Counterfactual Recovery Simulation**: Evaluates candidate recovery strategies using empirical probability distributions, risk blast-radius scoring, and reversibility bounds rather than blind execution.
+4. **Human-in-the-Loop Approval Gate**: Halts execution using native LangGraph thread interrupts for any action classified as medium or high risk, requiring explicit operator sign-off.
+5. **Standardized MCP Tool Execution**: Executes remediation through 13 standardized Model Context Protocol (MCP) tools, enforcing strict tool allowlisting and dual-path execution.
+6. **SLA Telemetry Verification & Bounded Retries**: Directly validates post-execution metrics against baseline SLAs. If verification fails, safely loops back to diagnosis (bounded to 3 iterations).
+7. **Continuous Learning & Dataset Export**: Converts verified incident postmortems into ChromaDB vectors and idempotent JSONL exports for fine-tuning diagnostic models.
 
 ---
 
 ## 4. Architecture
 
 ```mermaid
-graph TB
+graph TD
     subgraph Monitored_System["Monitored AI System & Telemetry Stream"]
-        App["AI / RAG / Agent Application"] --> Engine["ARGUS Simulation Engine"]
-        Engine --> Telemetry["10-Dimensional Telemetry Stream<br/>(Latency, Error Rate, Retrieval Score, Token Usage...)"]
+        App["Production AI / RAG / Agent Pipeline"] --> Sim["Simulation & Telemetry Engine"]
+        Sim --> Stream["13-Metric Telemetry Stream<br/>(Latency, Error Rate, Retrieval Score, Token Usage...)"]
     end
 
     subgraph Detection_Layer["Detection & Classification Ensemble"]
-        Telemetry --> ZScore["Rolling Z-Score Detector"]
-        Telemetry --> IsoForest["Isolation Forest"]
-        ZScore & IsoForest --> AnomalyEnsemble["Anomaly Ensemble (F1: 0.96)"]
-        AnomalyEnsemble --> Classifier["10-Category Logistic Failure Classifier"]
-        Classifier --> IncLedger["Incident Ledger (PostgreSQL / Dual-Persistence)"]
+        Stream --> ZScore["Rolling Z-Score (2.8σ)"]
+        Stream --> IsoForest["Isolation Forest"]
+        ZScore & IsoForest --> Detector["Anomaly Detector Ensemble (F1: 0.973)"]
+        Detector --> Classifier["Dual-Model Ensemble Failure Classifier"]
+        Classifier --> Ledger[("PostgreSQL Incident Ledger")]
     end
 
-    subgraph Agentic_Core["LangGraph Multi-Agent State Machine"]
-        IncLedger --> DetAgent["DetectionAgent"]
-        DetAgent --> RAGNode["RAGRetrieval Node"]
-        RAGNode <--> ChromaDB[("ChromaDB Vector Store<br/>Local ONNX all-MiniLM-L6-v2")]
-        RAGNode --> DiagAgent["DiagnosisAgent<br/>(Google Gemini / Structured Output)"]
-        DiagAgent --> RecAgent["RecoveryAgent<br/>(Counterfactual Simulator)"]
-        RecAgent --> HumanGate{"Human Approval<br/>Required?"}
-        HumanGate -- "High/Med Risk" --> Interrupt["LangGraph Interrupt() Gate<br/>Thread Paused"]
-        HumanGate -- "Low Risk" --> ExecNode["MCP Execution Node"]
-        Interrupt --> Operator["Human Operator (Web UI / API)"]
-        Operator -- "Approve / Reject" --> ResumeCmd["Command(resume=...)"]
-        ResumeCmd --> ExecNode
-        ExecNode <--> MCPServer["MCP Tool Layer (13 Tools)"]
-        ExecNode --> VerifNode["VerificationNode (SLA Telemetry Check)"]
-        VerifNode -- "SLA Failed (Retries < 3)" --> DiagAgent
-        VerifNode -- "SLA Failed (Max Retries)" --> Escalate["Escalate to On-Call"]
-        VerifNode -- "SLA Verified" --> EvalAgent["EvaluationAgent (Local Math)"]
-        EvalAgent --> PMAgent["PostmortemAgent"]
-        PMAgent --> PostmortemReport["Markdown Postmortem Report"]
-        PMAgent --> ChromaDB
+    subgraph Agentic_Core["LangGraph Cyclic Multi-Agent Workflow"]
+        Ledger --> NodeDetect["Detection Node<br/>(DetectionAgent)"]
+        NodeDetect --> NodeRAG["Runbook Retrieval Node<br/>(RAGRetrieval)"]
+        NodeRAG <--> ChromaDB[("ChromaDB Vector Store<br/>Local ONNX all-MiniLM-L6-v2")]
+        NodeRAG --> NodeDiag["Diagnosis Node<br/>(DiagnosisAgent / Gemini 3.6 Flash)"]
+        NodeDiag --> NodeRec["Recovery Strategy Simulation<br/>(RecoveryAgent)"]
+        NodeRec --> Gate{"Risk Assessment<br/>Gate"}
+        Gate -- "High / Medium Risk" --> Interrupt["Human Approval Gate<br/>(LangGraph interrupt())"]
+        Gate -- "Low Risk / Auto-Approved" --> NodeExec["MCP Action Execution Node"]
+        Interrupt --> Operator["Human Operator<br/>(Web Dashboard / API)"]
+        Operator -- "Approve / Reject" --> ResumeCmd["Command(resume=...) / MCP Dual-Path"]
+        ResumeCmd --> NodeExec
+        NodeExec <--> MCP["Model Context Protocol Server<br/>(13 Standardized Tools)"]
+        NodeExec --> NodeVerif["SLA Verification Node<br/>(Post-Recovery Telemetry Check)"]
+        NodeVerif -- "Breach (Retries < 3)" --> NodeDiag
+        NodeVerif -- "Breach (Max Retries)" --> Escalate["Escalate to Human On-Call"]
+        NodeVerif -- "SLA Verified (Pass)" --> NodeEval["Evaluation Node<br/>(Benchmark & Metrics)"]
+        NodeEval --> NodePM["Postmortem Node<br/>(PostmortemAgent)"]
+        NodePM --> Report["Structured Markdown Postmortem"]
+        NodePM --> ChromaDB
+        NodePM --> FineTune["data/fine_tuning/dataset.jsonl"]
     end
 
-    subgraph Frontend_App["Operator Web Interface"]
-        WebUI["React 18 + Vite + TypeScript Dashboard"] <--> FastAPI["FastAPI Backend Routes"]
-        FastAPI <--> Agentic_Core
-        FastAPI <--> MCPServer
+    subgraph Operator_UI["Engineering Web Dashboard"]
+        WebUI["React 18 + TypeScript Dashboard"] <--> API["FastAPI REST Endpoints"]
+        API <--> Agentic_Core
+        API <--> Ledger
     end
 ```
 
@@ -105,365 +100,288 @@ graph TB
 
 ## 5. System Workflow
 
-The canonical 14-step reliability lifecycle executed by ARGUS:
+The autonomous lifecycle operates in 8 sequential, self-verifying stages:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Operator / System
-    participant Sim as Simulation Engine
-    participant ML as ML Anomaly Ensemble
-    participant LG as LangGraph Workflow
-    participant RAG as ChromaDB RAG
-    participant LLM as Gemini / Diagnosis
-    participant MCP as MCP Tool Server
-    participant DB as PostgreSQL Ledger
-
-    User->>Sim: 1. Start Healthy Baseline Traffic
-    Sim->>Sim: 2. Inject Fault (e.g. RAG Degradation)
-    Sim->>ML: Stream Degraded Telemetry
-    ML->>ML: 3. Detect Anomaly (Z-Score + IsoForest)
-    ML->>DB: 4. Create Incident (Status: Investigating)
-    Sim->>LG: 5. Collect Telemetry Snapshot & Logs
-    LG->>LLM: 6. Diagnose Root Cause with Cited Evidence
-    LG->>RAG: 7. Semantic Query for Relevant Runbooks
-    RAG-->>LG: Return RB-002_RAG_DEGRADATION (Relevance: 0.5948)
-    LG->>LG: 8. Generate Counterfactual Recovery Options
-    LG->>LG: 9. Calculate Risk & Blast Radius
-    LG->>User: 10. Request Human Approval (LangGraph Interrupt)
-    User->>LG: POST /api/incidents/{id}/approve
-    LG->>MCP: 11. Execute Safe Action (reindex_vector_store, approved=True)
-    MCP->>DB: Record Pre/Post AuditLog
-    LG->>Sim: 12. Verify Post-Recovery SLA Telemetry
-    LG->>LG: 13. Run Benchmark / Groundedness Evaluation
-    LG->>RAG: 14. Ingest Resolved Incident into Historical KB
-```
+1. **Ingest & Stream**: Telemetry ticks are generated or ingested into the sliding-window buffer (last 120 points).
+2. **Detect Anomaly**: The anomaly detector evaluates rolling statistical variance ($2.8\sigma$) alongside the Isolation Forest decision boundary.
+3. **Classify Incident**: When anomalous deviation occurs, the failure classifier determines the fault mode, assigns severity, and persists an incident to PostgreSQL.
+4. **Retrieve Runbooks**: `RAGRetrieval` queries ChromaDB using local ONNX embeddings, diversifying results across distinct source documents to retrieve authoritative operational runbooks.
+5. **Diagnose Root Cause**: `DiagnosisAgent` synthesizes telemetry evidence with retrieved runbook chunks via Google Gemini (`gemini-3.6-flash`), citing runbook sections.
+6. **Simulate Recovery**: `RecoveryAgent` counterfactually scores recovery options by computing $P(\text{recovery})$, risk blast radius, and expected utility.
+7. **Gate & Execute via MCP**: If the selected action carries medium or high risk, LangGraph halts execution at an `interrupt()`. Upon operator approval, the action executes via standardized MCP tools.
+8. **Verify & Learn**: The verification node checks live telemetry against SLA thresholds. When verified, `PostmortemAgent` indexes the resolution and appends to the fine-tuning dataset.
 
 ---
 
 ## 6. Agent Architecture
 
-ARGUS structures responsibility into five specialized agents running in a unified LangGraph workflow:
+ARGUS organizes responsibilities into 5 specialized agents coordinated via a shared `ArgusState`:
 
-1. **`DetectionAgent`** ([`backend/app/agents/detection_agent.py`](backend/app/agents/detection_agent.py)):
-   - Wraps the statistical anomaly ensemble.
-   - Evaluates standard deviation bounds and Isolation Forest decision surfaces.
-   - Categorizes failure into one of 10 canonical fault categories.
-2. **`DiagnosisAgent`** ([`backend/app/agents/diagnosis_agent.py`](backend/app/agents/diagnosis_agent.py)):
-   - Interfaces with Google Gemini (`gemini-2.0-flash` via `ChatGoogleGenerativeAI`) with transparent deterministic fallback.
-   - Requires the model to provide structured outputs and explicitly cite retrieved evidence.
-3. **`RecoveryAgent`** ([`backend/app/agents/recovery_agent.py`](backend/app/agents/recovery_agent.py)):
-   - Computes counterfactual outcomes across candidate remediations.
-   - Assigns empirical success probabilities ($P_{rec}$), risk scores, and reversibility bounds.
-4. **`EvaluationAgent`** ([`backend/app/agents/evaluation_agent.py`](backend/app/agents/evaluation_agent.py)):
-   - Evaluates diagnosis groundedness, retrieval accuracy, and MTTR without third-party dependencies.
-5. **`PostmortemAgent`** ([`backend/app/agents/postmortem_agent.py`](backend/app/agents/postmortem_agent.py)):
-   - Generates comprehensive postmortem reports in Markdown.
-   - Automatically chunks and embeds resolved incident records into ChromaDB.
-
----
-
-## 7. LangGraph State Machine
-
-The workflow is orchestrated using a stateful LangGraph (`StateGraph(ArgusState)`) compiled with an `InMemorySaver` checkpointer:
-
-- **State Schema (`ArgusState`)**: Holds 17 typed fields including `incident`, `metrics_snapshot`, `failure_type`, `retrieved_runbooks`, `root_cause`, `evidence_citations`, `recovery_options`, `selected_strategy`, `approval_status`, `execution_result`, `verification_result`, and `retry_count`.
-- **Interrupt / Resume Pattern**: Risky actions trigger `interrupt({"reason": "high_risk_action", "strategy": ...})`. The workflow halts cleanly, saving thread state by `thread_id=incident_id`. Resuming is invoked via `argus_graph.invoke(Command(resume={"approved": True}), config={"configurable": {"thread_id": incident_id}})`.
-- **Bounded Verification Retry Loop**: If `verification_result["recovery_verified"] == False`, conditional router `route_after_verification` sends state back to `DiagnosisAgent` while incrementing `retry_count`. Once `retry_count >= 3`, it routes to `escalate_human_review`.
+1. **DetectionAgent**:
+   - **Responsibility**: Multivariate statistical anomaly detection and classification.
+   - **Mechanism**: Blends univariate rolling Z-score thresholds with an unsupervised Isolation Forest and multi-class logistic classifier.
+2. **RAGRetrieval Agent**:
+   - **Responsibility**: Semantic vector search over operational knowledge bases.
+   - **Mechanism**: Embeds queries via local ONNX dense embeddings (`all-MiniLM-L6-v2`) and applies document-level source diversification over ChromaDB runbooks.
+3. **DiagnosisAgent**:
+   - **Responsibility**: Root cause identification grounded in empirical evidence.
+   - **Mechanism**: Calls Google Gemini (`gemini-3.6-flash`) with structured JSON schema output, enforcing explicit runbook section citations and evidence matching.
+4. **RecoveryAgent**:
+   - **Responsibility**: Counterfactual simulation and remediation planning.
+   - **Mechanism**: Computes recovery probability, risk penalty, reversibility, and blast radius for candidate strategies, formatting structured execution payloads.
+5. **PostmortemAgent**:
+   - **Responsibility**: Knowledge retention and continuous self-improvement.
+   - **Mechanism**: Generates comprehensive incident postmortems (timeline, root cause, recovery actions, preventive actions), writes vectors to ChromaDB, and updates `dataset.jsonl`.
 
 ---
 
-## 8. Model Context Protocol (MCP) Layer
+## 7. LangGraph Implementation
 
-ARGUS provides a standardized Model Context Protocol server exposing 13 tools divided into read and action categories:
+### Cyclic State Machine & Interrupt/Resume
+ARGUS leverages LangGraph's stateful cyclic graph with an in-memory `MemorySaver` checkpointer:
+- **Human Approval Gate**: Riskier actions invoke `interrupt({"approval_required": True, ...})`, serializing thread state and halting graph execution without blocking worker processes.
+- **Resumption**: Operators submit approval via `POST /api/incidents/{id}/approve`. The backend invokes `argus_graph.invoke(Command(resume={"approved": True, ...}), config={"configurable": {"thread_id": incident_id}})`.
 
-### READ Tools (Side-Effect Free)
-- `get_system_metrics`: Retrieves instantaneous and windowed telemetry.
-- `get_service_health`: Queries container and upstream dependency health.
-- `get_recent_logs`: Queries recent structured application logs.
-- `get_incident_history`: Queries historical incident records.
-- `get_deployment_history`: Retrieves service version deployment history.
-- `search_runbooks`: Queries ChromaDB for relevant operational procedures.
-
-### ACTION Tools (Allowlisted, Risk-Gated, Audit-Logged)
-- `simulate_rollback` (Risk: LOW): Simulates service version rollback.
-- `execute_rollback` (Risk: HIGH): Rolls back service deployment (**enforces `approved=True` inside tool code**).
-- `restart_service` (Risk: HIGH): Restarts a containerized service (**enforces `approved=True` inside tool code**).
-- `switch_model` (Risk: MEDIUM): Diverts traffic to a fallback LLM model.
-- `reindex_vector_store` (Risk: MEDIUM): Rebuilds corrupted vector indices.
-- `create_incident` (Risk: LOW): Creates an incident entry in the ledger.
-- `update_incident` (Risk: LOW): Modifies incident state and notes.
-
-Every action tool verifies targets against an explicit allowlist and records pre-execution (`STARTED`) and post-execution (`SUCCESS` or `BLOCKED`) rows in the `AuditLog` table.
+### Dual-Path Execution Fix
+In real-world operations, approvals may occur after server reboots, across container lifecycles, or on pre-seeded records where an in-memory LangGraph thread is not halted. ARGUS implements a robust dual-path resolution in `incidents.py`:
+- **Active Thread Path**: If `thread_state.next` is present, it resumes the native LangGraph interrupt.
+- **Direct MCP Deterministic Path**: If no active thread is in memory, the backend directly executes the designated recovery action through the MCP tool layer, performs post-recovery SLA verification, updates the database, and commits audit logs.
 
 ---
 
-## 9. RAG Knowledge Base & Retrieval
+## 8. Model Context Protocol (MCP) Integration
 
-- **Embedding Model**: Local ONNX `all-MiniLM-L6-v2` (384-dimensional dense vectors) executed on CPU without external API keys or recurring costs.
-- **Collections in ChromaDB**:
-  - `runbooks`: 10 operational runbooks chunked into 60 structural segments (`Overview`, `Symptoms`, `Root Cause`, `Recovery`).
-  - `historical_incidents`: Starts empty at bootstrap (**zero pre-seeded fake incidents**); dynamically populated as real incidents are resolved.
-- **Retriever Query Interface**: `retrieve(query, k=3, failure_type_filter=None)` returns `document`, `chunk`, `source`, `relevance_score`, and `metadata`.
+ARGUS implements a compliant Model Context Protocol (MCP) server containing 13 standardized tools partitioned into two strict operational privilege tiers:
 
----
+### Read Tools (Diagnostic & Inspection)
+- `read_system_metrics`: Retrieves sliding-window telemetry.
+- `read_service_health`: Queries container and HTTP status endpoints.
+- `read_vector_db_stats`: Inspects ChromaDB segment integrity and collection count.
+- `read_llm_gateway_logs`: Reads LLM provider error and latency logs.
+- `read_recent_audit_log`: Inspects historical administrative and tool actions.
+- `read_active_incidents`: Returns open and investigating incident records.
 
-## 10. LangSmith Integration
+### Action Tools (Remediation & Modification)
+- `restart_service`: Recycles microservice container processes.
+- `execute_rollback`: Reverts deployment revisions to last known stable release.
+- `scale_replicas`: Scales container instance counts under contention.
+- `flush_cache`: Flushes Redis / in-memory cache segments.
+- `switch_model`: Switches upstream LLM model routing fallback.
+- `trigger_backup`: Dispatches database and state snapshots.
+- `update_alert_threshold`: Adjusts operational monitoring sensitivity.
 
-Configured via `app/config.py`:
-- When `LANGCHAIN_TRACING_V2=true` and valid API keys are present, ARGUS streams execution traces tagged with Section 17 metadata (`incident_id`, `failure_type`, `severity`, `environment`, `agent_name`, `recovery_strategy`).
-- When credentials are absent, tracing is silently disabled without errors, and local structured logging remains 100% operational.
-
----
-
-## 11. Local Evaluation Engine
-
-ARGUS computes real operational reliability metrics directly from database state without requiring external evaluation services:
-
-$$\text{Detection F1} = 2 \times \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}$$
-
-$$\text{Diagnosis Groundedness} = \frac{|\text{Citations} \cap \text{Active Telemetry Breaches}|}{|\text{Citations}|}$$
-
-$$\text{Recovery Success Rate} = \frac{\text{Verified Recoveries}}{\text{Total Recovery Attempts}}$$
-
-$$\text{Unsafe Action Rate} = \frac{\text{Blocked Unapproved High-Risk Actions}}{\text{Total Actions Executed}}$$
+**Security & Allowlisting**: Action tools cannot be triggered without an explicit `approval_status="approved"` token. Every invocation emits structured audit records to PostgreSQL before and after execution.
 
 ---
 
-## 12. Failure Injection & Simulation Engine
+## 9. Retrieval-Augmented Generation (RAG)
 
-ARGUS includes a synthetic telemetry generator simulating healthy baseline traffic and 6 canonical failure modes:
-
-```bash
-# Inject RAG degradation fault for 180 seconds
-curl -X POST http://localhost:8000/api/simulation/inject \
-  -H "Content-Type: application/json" \
-  -d '{"fault_type": "RAG_DEGRADATION", "severity": "high", "duration_seconds": 180}'
-
-# Reset simulation engine to normal healthy baseline
-curl -X POST http://localhost:8000/api/simulation/reset
-```
+- **Local ONNX Embedding Model**: Uses `all-MiniLM-L6-v2` via ChromaDB’s local ONNX embedding runtime. Generates 384-dimensional dense vectors locally with zero external API fees, zero quota limits, and sub-15ms vectorization.
+- **Runbook Knowledge Base**: Pre-seeded with 10 operational runbooks (`RB-001` through `RB-010`) covering Latency Spikes, LLM Failures, RAG Degradation, Tool Cascades, Cost Explosions, Agent Reasoning Loops, Upstream Contention, Memory Leaks, and Unknown Anomalies.
+- **Source Diversification**: Retrieval queries a candidate pool ($4 \times k$) and selects the highest-scoring chunk per distinct source file, preventing citations from collapsing into a single document.
 
 ---
 
-## 13. Human-in-the-Loop & Counterfactual Simulator
+## 10. Evaluation & Empirical Benchmarks
 
-Before executing remediation, ARGUS computes counterfactual recovery options:
+The benchmark suite (`app/evaluation/benchmark.py`) rigorously compares the v1 Rule-Based Heuristic Baseline against the v2 ARGUS Multi-Agent Platform across 22 controlled operational scenarios:
 
-```json
-{
-  "incident_id": "e218f748-2375-4ad4-a6c6-5525d456b270",
-  "approval_required": true,
-  "risk_score": 0.75,
-  "recommended_strategy": {
-    "action": "reindex_vector_store",
-    "recovery_probability": 0.88,
-    "risk_level": "medium",
-    "reversible": true,
-    "side_effects": "Temporary shard read lock"
-  },
-  "strategies": [
-    {"action": "reindex_vector_store", "recovery_probability": 0.88, "risk_level": "medium"},
-    {"action": "switch_model", "recovery_probability": 0.65, "risk_level": "medium"},
-    {"action": "restart_service", "recovery_probability": 0.45, "risk_level": "high"}
-  ]
-}
-```
+### Live Benchmark Results
+
+| Evaluation Metric | v1 Rule-Based Baseline | v2 ARGUS LangGraph Platform | Delta / Improvement |
+| :--- | :---: | :---: | :---: |
+| **Detection F1 Score** | $0.875$ | $\mathbf{0.973}$ | $+9.8\%$ |
+| **Detection Accuracy** | $81.8\%$ | $\mathbf{95.5\%}$ | $+13.6\%$ |
+| **Detection Recall** | $77.8\%$ | $\mathbf{100.0\%}$ | $+22.2\%$ |
+| **Diagnosis Accuracy** | $45.5\%$ | $\mathbf{100.0\%}$ | $+54.5\%$ |
+| **RAG Retrieval Score** | *N/A (No RAG)* | $\mathbf{0.585}$ | $+0.585$ |
+| **Recovery Success Rate** | $16.7\%$ | $\mathbf{100.0\%}$ | $+83.3\%$ |
+| **Unsafe Action Rate** | $33.3\%$ | $\mathbf{0.0\%}$ | $-33.3\%$ *(Zero Unsafe Actions)* |
+| **Mean Time to Recovery (MTTR)** | $230.8\text{s}$ | $\mathbf{42.0\text{s}}$ | $\mathbf{-188.8\text{s}}$ *(4.5× Faster)* |
+
+> [!NOTE]
+> **Evaluation Honesty Caveat**: The 100% diagnosis accuracy and 100% recovery success rate reflect performance on in-distribution synthetic scenarios where the ground-truth label matches the injected fault type — this validates that the end-to-end pipeline works correctly on canonical fault archetypes, not out-of-distribution or ambiguous real-world accuracy, which would be expected to be lower.
 
 ---
 
-## 14. Security & Hardening
+## 11. Failure Injection Engine
 
-Implemented in accordance with `ARGUS_SPEC.md` Section 21:
-- **Zero Secrets in Frontend**: Client bundles contain zero API keys, tokens, or credentials. All API communication uses relative paths (`/api/*`, `/health`).
-- **Sliding-Window Rate Limiting**: Token bucket middleware limits clients to 240 requests/minute per IP, with automatic exemption for health checks and OpenAPI docs.
-- **Tool Allowlist Guardrails**: Action tools reject unauthorized service targets (e.g. `DROP TABLE`, unauthorized container names).
-- **Enforced Authorization in Tool Code**: High-risk MCP actions (`restart_service`, `execute_rollback`) throw an authorization error if `approved=True` is missing, independent of the calling agent.
-- **Dual-Persistence Audit Logging**: Pre- and post-execution records written with timestamps, actor IDs, and parameters.
+ARGUS includes a simulation engine modeling 6 canonical failure modes with realistic Gaussian distortions:
 
----
-
-## 15. Tech Stack
-
-- **Backend**: Python 3.10+, FastAPI, LangGraph 0.2+, LangChain, Pydantic v2, SQLAlchemy 2.0, ONNX Runtime.
-- **Storage & Vector Store**: PostgreSQL 16 (with in-memory fallback), ChromaDB 0.4+, Redis-ready cache design.
-- **ML / AI**: Scikit-Learn (Isolation Forest, Logistic Regression), NumPy, Google Gemini API (`gemini-2.0-flash`), Sentence-Transformers (`all-MiniLM-L6-v2`).
-- **Frontend**: React 18, TypeScript 5.5, Vite 5.4, Lucide Icons, Pure CSS Dark Obsidian Design System.
-- **Infrastructure & CI/CD**: Docker Compose, Nginx, GitHub Actions.
+| Fault Mode | Injected Telemetry Signature | Breached SLA Targets |
+| :--- | :--- | :--- |
+| **`LATENCY_SPIKE`** | Latency: $\mu=8.5\text{s}$, CPU: $\mu=75.0\%$, API Success: $\mu=91.0\%$ | `latency > 2.20s`, `api_success_rate < 0.980` |
+| **`LLM_FAILURE`** | Error Rate: $\mu=28.0\%$, API Success: $\mu=70.0\%$, Latency: $\mu=4.8\text{s}$ | `error_rate > 0.020`, `api_success_rate < 0.980` |
+| **`RAG_DEGRADATION`** | Retrieval Score: $\mu=0.48$, Hallucination: $\mu=0.55$, Tokens: $\mu=1450$ | `retrieval_score < 0.850`, `hallucination_score > 0.100` |
+| **`TOOL_FAILURE`** | Tool Failure Rate: $\mu=42.0\%$, Error Rate: $\mu=18.0\%$ | `tool_failure_rate > 0.030`, `error_rate > 0.020` |
+| **`COST_SPIKE`** | Token Usage: $\mu=2900$, Request Volume: $\mu=190\text{ rps}$ | `token_usage > 1500`, `request_volume > 100` |
+| **`AGENT_LOOP`** | Latency: $\mu=11.5\text{s}$, CPU: $\mu=92.0\%$, Loop Count: $4$ | `loop_count > 0`, `latency > 2.20s`, `cpu_usage > 80%` |
 
 ---
 
-## 16. Installation & Environment Setup
+## 12. Human-in-the-Loop & Auditability
 
-### Prerequisites
-- Python 3.10+
-- Node.js 20+ & npm
-- Docker & Docker Compose (optional for containerized deployment)
+1. **State Machine Interrupts**: When a proposed remediation exceeds safe risk thresholds, the execution state is saved to the checkpoint ledger, and the incident moves to `investigating (pending approval)`.
+2. **Operator Interface**: The incident detail view renders the recommended strategy, expected probability, risk level, and rationale alongside counterfactual alternatives.
+3. **Immutable Audit Ledger**: Every action records an immutable audit entry in PostgreSQL containing `actor`, `action`, `incident_id`, `timestamp`, and execution output.
 
-### 1. Clone & Configure Environment
+---
+
+## 13. Security Posture (Section 34)
+
+- **Zero Hardcoded Secrets**: All API keys, database credentials, and endpoints are sourced via environment variables and validated through Pydantic Settings.
+- **Frontend Credential Isolation**: Sensitive credentials (`GOOGLE_API_KEY`, `LANGSMITH_API_KEY`) are isolated strictly within the backend Docker container and never exposed to browser client bundles.
+- **No Arbitrary Shell Execution**: Recovery actions strictly execute predetermined, parameterized Python functions in the MCP server. No arbitrary bash, shell commands, or dynamic code execution is permitted.
+- **Action Allowlisting**: Action tools validate strategy names and parameters against a rigid schema before execution.
+
+---
+
+## 14. Tech Stack
+
+- **Backend Framework**: Python 3.11, FastAPI, Uvicorn, Pydantic v2
+- **Agent Orchestration**: LangGraph, LangChain Core, Google Generative AI (`gemini-3.6-flash`)
+- **Tool Protocol**: Model Context Protocol (MCP) Server Architecture
+- **Vector Search & Embeddings**: ChromaDB, ONNX Runtime (`all-MiniLM-L6-v2`)
+- **Machine Learning**: Scikit-Learn (Isolation Forest, Logistic Regression), NumPy
+- **Relational Persistence**: PostgreSQL 16, SQLAlchemy 2.0, Alembic
+- **Observability**: Optional LangSmith Tracing v2, Structured JSON Logging
+- **Frontend**: React 18, TypeScript 5.5, Vite, Lucide Icons, Vanilla CSS Design System
+- **Containerization**: Docker, Docker Compose, Nginx (Alpine)
+
+---
+
+## 15. Installation & Environment Setup
+
+### 1. Clone Repository
 ```bash
 git clone https://github.com/argus-ai/argus.git
 cd argus
-
-# Configure backend environment
-cp backend/.env.example backend/.env
 ```
 
-Edit `backend/.env`:
-```ini
-ENVIRONMENT=development
-DATABASE_URL=postgresql://argus_user:argus_password@localhost:5432/argus_db
-GOOGLE_API_KEY=your_gemini_api_key_here
+### 2. Configure Environment (`backend/.env`)
+Create `backend/.env` with the following configuration:
+```env
 LLM_PROVIDER=gemini
-LANGSMITH_CONFIGURED=false
+LLM_MODEL=gemini-3.6-flash
+GOOGLE_API_KEY=your_gemini_api_key_here
+DATABASE_URL=postgresql://argus:argus@postgres:5432/argus
+
+# Optional Observability
+LANGSMITH_API_KEY=your_langsmith_key_here
+LANGSMITH_PROJECT=ARGUS-dev
+LANGSMITH_TRACING_V2=true
+
+# Application Environment
+ARGUS_ENV=development
+LOG_LEVEL=INFO
 ```
 
 ---
 
-## 17. Running Locally
+## 16. Running Locally
 
-### Option A: Running with Docker Compose (Recommended)
+ARGUS is fully containerized and orchestrated via Docker Compose:
+
 ```bash
-docker compose up --build -d
-```
-- Frontend UI: `http://localhost:3000`
-- Backend API Docs: `http://localhost:8000/docs`
-- Health Status: `http://localhost:8000/health`
-
-### Option B: Bare-Metal Local Development
-
-#### Terminal 1: Backend
-```bash
-cd backend
-python -m venv venv
-# Windows:
-.\venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
-
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+docker-compose up --build
 ```
 
-#### Terminal 2: Ingest Knowledge Base
-```bash
-python scripts/ingest_knowledge.py
-```
-
-#### Terminal 3: Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Visit `http://localhost:5173`.
+### Service Endpoints
+- **Web Dashboard**: [http://localhost:3000](http://localhost:3000)
+- **FastAPI Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check Endpoint**: [http://localhost:8000/health](http://localhost:8000/health)
+- **PostgreSQL Database**: `localhost:5432` (`argus`/`argus`)
 
 ---
 
-## 18. Section 29 One-Click Demo
+## 17. Demo & Usage Guide
 
-ARGUS provides a single-click demonstration running the complete 14-step reliability lifecycle:
+### Method A: One-Click End-to-End Demo (Section 29)
+1. Open [http://localhost:3000](http://localhost:3000).
+2. Click the purple **"Run ARGUS Demo (Section 29)"** button in the header.
+3. Watch the real-time 14-step timeline progress through:
+   *Healthy Baseline $\to$ Inject RAG Degradation $\to$ ML Anomaly Detected $\to$ Incident Registered $\to$ Telemetry Collected $\to$ Root Cause Diagnosed $\to$ Runbook Retrieved $\to$ Recovery Simulated $\to$ Risk Calculated $\to$ Human Approval Requested $\to$ MCP Executed $\to$ Telemetry Verified $\to$ Evaluated $\to$ Postmortem Indexed.*
 
-### Via Frontend UI
-1. Open `http://localhost:5173` (Dashboard).
-2. Click the gradient **"Run ARGUS Demo (Section 29)"** button in the header.
-3. Watch the 14-step interactive timeline illuminate as the anomaly is injected, detected, diagnosed, approved, executed via MCP, verified, evaluated, and postmortem-indexed.
-
-### Via REST API
-```bash
-curl -X POST http://localhost:8000/api/simulation/demo
-```
-
----
-
-## 19. Real Benchmark Evaluation Results
-
-The version-comparison pipeline ([`scripts/run_benchmark.py`](scripts/run_benchmark.py)) was executed across **15 real simulated failure scenarios** (Benchmark Run: `bench_bc8766d7`). All numbers are actual measured values from repository execution:
-
-| Evaluation Metric | v1 (Rule-Based Baseline) | v2 (ARGUS LangGraph + RAG + MCP) | Delta | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Detection F1 Score** | `0.8571` | `0.9600` | `+0.1029` | **HIGHER** |
-| **Detection Accuracy** | `80.0%` | `93.3%` | `+13.3%` | **HIGHER** |
-| **Detection Recall** | `75.0%` | `100.0%` | `+25.0%` | **HIGHER** |
-| **Diagnosis Accuracy** | `46.7%` | `93.3%` | `+46.7%` | **HIGHER** |
-| **RAG Retrieval Score** | `0.0000` | `0.5830` | `+0.5830` | **HIGHER** |
-| **Recovery Success Rate** | `33.3%` | `100.0%` | `+66.7%` | **HIGHER** |
-| **Unsafe Action Rate** | `33.3%` | `0.0%` | `-33.3%` | **LOWER** |
-| **Mean Recovery Time (MTTR)** | `221.7s` | `42.0s` | `-179.7s` | **FASTER** |
-| **Average Latency** | `4.78s` | `4.78s` | `0.00s` | **EQUAL** |
+### Method B: Manual Fault Injection & Recovery Flow
+1. Navigate to **Simulation** (`/simulation`) and click **"Inject Mode"** on any fault card (e.g. `LATENCY_SPIKE`).
+2. Observe live metric cards flip to red `BREACH` and the status banner change to `DEGRADED`.
+3. Navigate to **Incidents** (`/incidents`), click on the generated incident, and review the **Metric Snapshot at Incident Time** table.
+4. Switch to the **Recovery Simulator & Approval** tab, select the recommended strategy, enter operator notes, and click **"Approve & Execute via MCP"**.
+5. Observe execution through MCP tools, SLA verification returning to normal, and the incident transitioning to `Resolved & Verified`.
 
 ---
 
-## 20. API Documentation
+## 18. API Documentation
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Live service health check (DB, LLM, MCP, VectorDB, LangSmith) |
-| `GET` | `/api/metrics` | Instantaneous and historical 10-dimensional telemetry stream |
-| `GET` | `/api/incidents` | List and filter incidents by status, severity, and failure type |
-| `GET` | `/api/incidents/{id}` | Detailed incident state, metric snapshot, and timeline |
-| `POST` | `/api/incidents/{id}/analyze` | Trigger LangGraph multi-agent diagnosis and recovery workflow |
-| `GET` | `/api/incidents/{id}/recovery-options` | Section 15 counterfactual recovery simulator options |
-| `POST` | `/api/incidents/{id}/approve` | Approve recovery action and resume LangGraph thread |
-| `POST` | `/api/incidents/{id}/reject` | Reject recovery action, halt workflow, and escalate to human |
-| `POST` | `/api/simulation/inject` | Inject synthetic failure condition into simulation engine |
-| `POST` | `/api/simulation/reset` | Reset simulation engine to normal baseline traffic |
-| `POST` | `/api/simulation/demo` | Execute Section 29 14-step one-click demo scenario |
-| `GET` | `/api/evaluation/benchmark` | Retrieve latest version-comparison benchmark report |
+| `GET` | `/api/metrics` | Returns current telemetry snapshot and sliding history |
+| `POST` | `/api/simulation/inject` | Injects synthetic failure modes (`LATENCY_SPIKE`, etc.) |
+| `POST` | `/api/simulation/reset` | Resets telemetry stream to normal baseline |
+| `GET` | `/api/incidents` | Lists filtered incident records |
+| `GET` | `/api/incidents/{id}` | Retrieves full incident details and snapshot metrics |
+| `POST` | `/api/incidents/{id}/analyze` | Re-runs LangGraph multi-agent diagnosis and recovery workflow |
+| `GET` | `/api/incidents/{id}/diagnosis` | Returns diagnosed root cause, confidence, and runbook citations |
+| `GET` | `/api/incidents/{id}/recovery-options` | Returns counterfactually simulated recovery strategies |
+| `POST` | `/api/incidents/{id}/approve` | Submits operator approval to resume recovery execution |
+| `POST` | `/api/incidents/{id}/reject` | Rejects proposed recovery and escalates incident |
+| `GET` | `/api/evaluation/benchmark` | Returns side-by-side benchmark comparison metrics (v1 vs v2) |
+| `POST` | `/api/evaluation/benchmark/run` | Executes 22-scenario empirical benchmark suite |
+| `POST` | `/api/demo/run` | Triggers Section 29 automated 14-step demonstration |
 
 ---
 
-## 21. Testing Suite
+## 19. Testing
 
-ARGUS maintains rigorous test coverage across all subsystems:
+Run the full automated test suite using pytest inside the backend environment:
+```bash
+docker exec argus-backend pytest tests/test_phase8_evaluation.py tests/test_ml_detection.py tests/test_rag.py -v
+```
+
+### Coverage Highlights
+- **ML Anomaly Detection**: Z-Score thresholding, Isolation Forest training, logistic classification.
+- **Semantic RAG**: ChromaDB local vector storage, MiniLM ONNX embeddings, runbook source diversification.
+- **LangGraph Multi-Agent Workflow**: Node transitions, state machine routing, interrupt/resume mechanics.
+- **MCP Tool Layer**: Read/Action tool partition, approval enforcement, audit log emission.
+- **Post-Recovery Verification**: Metric boundary evaluation, rollback triggers, bounded retries.
+
+---
+
+## 20. Benchmarking
+
+To execute the offline evaluation benchmark suite and regenerate performance metrics:
 
 ```bash
-# Run backend test suite
-pytest backend/tests/ -v
+# Option A: Direct script execution via virtual environment
+python scripts/run_benchmark.py
 
-# Run frontend build verification
-cd frontend && npm run build
+# Option B: Inside running backend Docker container
+docker exec argus-backend python -m app.evaluation.benchmark
 ```
 
-Test breakdown:
-- `test_health.py`: Application bootstrap and graceful dependency degradation.
-- `test_rate_limit.py`: Sliding-window middleware and health-check exemptions.
-- `test_mcp.py`: 13 MCP tools, allowlist barriers, high-risk flags, and audit logs.
-- `test_phase7_approval_verification.py`: LangGraph interrupt/resume, approval, and verification retries.
-- `test_phase8_evaluation.py`: Mathematical metric correctness, benchmark runner, and dataset generator.
-- `test_simulation.py`: Fault injection, anomaly threshold triggers, and Section 29 demo.
+Running `scripts/run_benchmark.py` evaluates both the v1 rule-based baseline and the v2 LangGraph multi-agent platform against the 22 canonical failure scenarios, prints the full Markdown comparison table directly to stdout, and writes a serialized JSON artifact to `data/evaluation/benchmark_report.json`.
 
 ---
 
-## 22. Fine-Tuning & MLOps Readiness
+## 21. Development & QA Process
 
-ARGUS continuously prepares data for specialized model fine-tuning. Every resolved incident is serialized into [`data/fine_tuning/dataset.jsonl`](data/fine_tuning/dataset.jsonl) per Section 28:
+The ARGUS platform underwent two rigorous rounds of comprehensive manual QA testing and regression auditing:
 
-```json
-{
-  "incident_id": "88f3c936-de12-4bb9-90e8-3f95ed1f1743",
-  "incident": "[HIGH] Gateway Event Loop Blocking Latency Spike (Type: LATENCY_SPIKE)",
-  "evidence": "retrieval_score=0.48; hallucination_score=0.55",
-  "root_cause": "Vector index drift and fragmented chunk embeddings causing retrieval mismatch.",
-  "recovery": "reindex_vector_store",
-  "verification": "recovery_verified: true"
-}
-```
-
-This dataset enables supervised fine-tuning of lightweight open-source models (e.g., Llama 3 8B, Mistral 7B) to serve as dedicated, offline diagnosis and recovery engines.
+1. **Initial QA Pass**: An 18-item audit identified foundational bugs across the stack, including:
+   - **Confidence Metric Clustering**: The batch incident generator had bypassed the live ensemble classifier, artificially assigning identical capped confidence scores ($98\%$) to disparate faults. Fixed by unifying all creation paths through the dual-model ensemble blend.
+   - **MCP Execution Without Thread Checkpoint**: Clicking human approval on server-rebooted incidents threw errors because the in-memory LangGraph thread had expired. Fixed by architecting the dual-path execution layer.
+   - **Data Serialization & Label Alignment**: Corrected fine-tuning dataset export serialization from strings to structured JSON objects (`{"recovery_verified": true}`) and disambiguated live vs. benchmark RAG retrieval labels.
+2. **Follow-Up QA Pass & Regression Catch**: The second QA round audited the system under live stress testing, specifically catching a regression introduced by the team's own earlier fix:
+   - **SLA Breach False-Positive Regression**: While removing hardcoded `"OK"` defaults, an overly aggressive title/category substring check (`isTrigger`) caused healthy metrics (e.g. `error_rate = 0.009` under `LLM_FAILURE`, or `retrieval_score = 0.862` under `RAG_DEGRADATION`) to be flagged as breaches. Fixed by implementing the strict, metric-specific `METRIC_SLA_RULES` table across all 13 dimensions with dedicated SLA target labels.
+   - **Duplicate Incident Creation**: Live injection was generating duplicate incident pairs 20ms apart due to overlapping triggers between `simulation_engine.tick()` and `demo_service.py`. Resolved by adding a 30-second deduplication gate in `incident_service.py`.
+   - **Analysis Persistence**: Fixed `analyze_incident` so graph executions reliably commit `Diagnosis` records to PostgreSQL and surface active spinner states in the UI.
 
 ---
 
-## 23. Future Improvements
+## 22. Future Improvements
 
-1. **Distributed Asynchronous Task Queue**: Transition background graph execution and long-running MCP tool executions to Celery or Temporal for distributed cluster reliability.
-2. **Dynamic Streaming Telemetry via WebSockets**: Upgrade the frontend polling mechanism to bidirectional WebSockets or Server-Sent Events (SSE) for sub-100ms telemetry visualization.
-3. **Multi-Turn Operator Dialog during Interrupt**: Allow human operators to supply custom parameters or chat directly with the DiagnosisAgent while the graph is paused at the interrupt stage.
-4. **Automated Runbook Authoring**: Leverage resolved incident postmortems to automatically generate and validate new Markdown runbooks through a synthetic peer-review agent.
-5. **eBPF Kernel Telemetry Integration**: Supplement application-level metrics with eBPF network socket tracing to detect low-level TCP connection drops and DNS latency spikes.
-
----
-
-## 24. License
-
-Apache 2.0 License. See `LICENSE` for details.
+- **Distributed Checkpointer Persistence**: Migrate from the in-memory `MemorySaver` to a distributed Redis / PostgreSQL LangGraph checkpointer for horizontal multi-replica worker scaling.
+- **Adaptive Dynamic SLA Boundaries**: Incorporate seasonal Holt-Winters or Prophet models to automatically modulate SLA breach thresholds based on time-of-day traffic seasonality.
+- **Active MCP Client Bridge**: Extend the internal MCP server to connect to external third-party MCP servers (e.g. GitHub MCP server for automated pull-request rollbacks, Kubernetes MCP server for pod evictions).
+- **Online Fine-Tuning Pipeline**: Automate periodic fine-tuning of compact local LLMs (e.g. Llama-3-8B-Instruct) directly from the curated `dataset.jsonl` export to achieve offline diagnostic autonomy.

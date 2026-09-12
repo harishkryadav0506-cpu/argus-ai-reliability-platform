@@ -36,9 +36,11 @@ def retrieve(
         where_filter = {"failure_type": failure_type_filter}
 
     try:
+        total_docs = target_collection.count() if hasattr(target_collection, "count") else 20
+        candidate_k = min(total_docs, max(k * 4, 12)) if total_docs > 0 else k
         results = target_collection.query(
             query_texts=[query],
-            n_results=k,
+            n_results=candidate_k,
             where=where_filter,
             include=["documents", "metadatas", "distances"],
         )
@@ -50,7 +52,7 @@ def retrieve(
     metadatas = results.get("metadatas", [[]])[0]
     distances = results.get("distances", [[]])[0]
 
-    retrieved_items: List[Dict[str, Any]] = []
+    all_candidates: List[Dict[str, Any]] = []
 
     for i in range(len(documents)):
         chunk_text = documents[i]
@@ -58,16 +60,36 @@ def retrieve(
         distance = distances[i] if i < len(distances) else 1.0
 
         # Convert distance to normalized relevance score [0.0, 1.0]
-        # In Chroma, default cosine distance ranges from 0.0 (identical) to 2.0 (opposite)
-        # If L2 squared, 1.0 / (1.0 + distance) is a robust smooth normalization.
         relevance_score = round(max(0.0, min(1.0, 1.0 - (distance / 2.0))), 4)
 
-        retrieved_items.append({
+        all_candidates.append({
             "document": meta.get("title", meta.get("source", "Unknown Document")),
             "chunk": chunk_text,
             "source": meta.get("source", "unknown"),
             "relevance_score": relevance_score,
             "metadata": meta,
         })
+
+    # Diversify by source document: pick highest-scoring chunk per distinct source first
+    retrieved_items: List[Dict[str, Any]] = []
+    seen_sources = set()
+    remaining_candidates: List[Dict[str, Any]] = []
+
+    for item in all_candidates:
+        src = item["source"]
+        if src not in seen_sources:
+            seen_sources.add(src)
+            retrieved_items.append(item)
+            if len(retrieved_items) == k:
+                break
+        else:
+            remaining_candidates.append(item)
+
+    # If distinct sources are fewer than k, fill with next best chunks
+    if len(retrieved_items) < k:
+        for item in remaining_candidates:
+            retrieved_items.append(item)
+            if len(retrieved_items) == k:
+                break
 
     return retrieved_items

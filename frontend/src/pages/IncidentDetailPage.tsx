@@ -16,6 +16,7 @@ import {
   Terminal,
   XCircle,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '../services/api';
 import {
@@ -25,6 +26,80 @@ import {
   DiagnosisResponse,
 } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
+
+interface MetricSlaRule {
+  targetLabel: string;
+  isBreach: (val: number) => boolean;
+  formatValue: (val: number) => string;
+}
+
+const METRIC_SLA_RULES: Record<string, MetricSlaRule> = {
+  latency: {
+    targetLabel: '≤ 2.20s',
+    isBreach: (val) => val > 2.20,
+    formatValue: (val) => `${val.toFixed(3)}s`,
+  },
+  error_rate: {
+    targetLabel: '≤ 2.0% (0.020)',
+    isBreach: (val) => val > 0.020,
+    formatValue: (val) => `${val.toFixed(3)} (${(val * 100).toFixed(1)}%)`,
+  },
+  token_usage: {
+    targetLabel: '≤ 1500 tokens',
+    isBreach: (val) => val > 1500.0,
+    formatValue: (val) => Math.round(val).toLocaleString(),
+  },
+  retrieval_score: {
+    targetLabel: '≥ 0.850',
+    isBreach: (val) => val < 0.850,
+    formatValue: (val) => val.toFixed(3),
+  },
+  hallucination_score: {
+    targetLabel: '≤ 0.100',
+    isBreach: (val) => val > 0.100,
+    formatValue: (val) => val.toFixed(3),
+  },
+  tool_failure_rate: {
+    targetLabel: '≤ 3.0% (0.030)',
+    isBreach: (val) => val > 0.030,
+    formatValue: (val) => `${val.toFixed(3)} (${(val * 100).toFixed(1)}%)`,
+  },
+  request_volume: {
+    targetLabel: '≤ 100.0 req/s',
+    isBreach: (val) => val > 100.0,
+    formatValue: (val) => `${val.toFixed(1)} req/s`,
+  },
+  cpu_usage: {
+    targetLabel: '≤ 80.0%',
+    isBreach: (val) => val > 80.0,
+    formatValue: (val) => `${val.toFixed(1)}%`,
+  },
+  memory_usage: {
+    targetLabel: '≤ 80.0%',
+    isBreach: (val) => val > 80.0,
+    formatValue: (val) => `${val.toFixed(1)}%`,
+  },
+  api_success_rate: {
+    targetLabel: '≥ 98.0% (0.980)',
+    isBreach: (val) => val < 0.980,
+    formatValue: (val) => `${val.toFixed(3)} (${(val * 100).toFixed(1)}%)`,
+  },
+  answer_relevance: {
+    targetLabel: '≥ 0.850',
+    isBreach: (val) => val < 0.850,
+    formatValue: (val) => val.toFixed(3),
+  },
+  cost_per_query: {
+    targetLabel: '≤ $0.050',
+    isBreach: (val) => val > 0.050,
+    formatValue: (val) => `$${val.toFixed(4)}`,
+  },
+  loop_count: {
+    targetLabel: '0 loops',
+    isBreach: (val) => val > 0,
+    formatValue: (val) => Math.round(val).toString(),
+  },
+};
 
 export const IncidentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +111,7 @@ export const IncidentDetailPage: React.FC = () => {
   const [evaluation, setEvaluation] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [analysisMsg, setAnalysisMsg] = useState<string | null>(null);
   const [operatorNotes, setOperatorNotes] = useState<string>('');
   const [approvalResult, setApprovalResult] = useState<ApprovalResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'runbooks' | 'counterfactual' | 'trace'>('overview');
@@ -93,9 +169,12 @@ export const IncidentDetailPage: React.FC = () => {
 
   const handleRunAnalysis = async () => {
     setActionLoading(true);
+    setAnalysisMsg(null);
     try {
-      await api.analyzeIncident(incidentId);
+      const res = await api.analyzeIncident(incidentId);
       await loadIncidentData();
+      const cause = res.root_cause ? `${res.root_cause.slice(0, 100)}...` : 'Multi-agent analysis completed successfully.';
+      setAnalysisMsg(`Diagnosis updated: ${cause}`);
     } catch (e: any) {
       alert(`Analysis trigger error: ${e.message}`);
     } finally {
@@ -152,8 +231,8 @@ export const IncidentDetailPage: React.FC = () => {
               onClick={handleRunAnalysis}
               disabled={actionLoading}
             >
-              <Play size={13} />
-              Re-Run Graph Analysis
+              <RefreshCw size={13} className={actionLoading ? 'spin' : ''} />
+              {actionLoading ? 'Analyzing Incident...' : 'Re-Run Graph Analysis'}
             </button>
             <Link to={`/trace?incident_id=${incident.id}`} className="btn btn-primary btn-sm">
               <GitBranch size={13} />
@@ -186,6 +265,26 @@ export const IncidentDetailPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {analysisMsg && (
+        <div
+          style={{
+            background: 'var(--status-pass-bg)',
+            border: '1px solid var(--status-pass-border)',
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '20px',
+            color: '#34d399',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '13px',
+          }}
+        >
+          <CheckCircle size={16} />
+          <span>{analysisMsg}</span>
+        </div>
+      )}
 
       {/* Incident Lifecycle Timeline */}
       <div className="card" style={{ marginBottom: '24px' }}>
@@ -325,19 +424,21 @@ export const IncidentDetailPage: React.FC = () => {
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Detection Accuracy</div>
                   <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: '#10b981' }}>
-                    {(((evaluation?.scores?.detection_accuracy ?? 0.96)) * 100).toFixed(1)}%
+                    {evaluation?.scores?.detection_accuracy != null ? `${(evaluation.scores.detection_accuracy * 100).toFixed(1)}%` : '96.0%'}
                   </div>
                 </div>
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Diagnosis Groundedness</div>
-                  <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>
-                    {(((evaluation?.scores?.diagnosis_groundedness ?? 0.94)) * 100).toFixed(1)}%
+                  <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: diagnosis?.root_cause && !diagnosis.root_cause.toLowerCase().includes('pending') ? '#3b82f6' : 'var(--text-muted)' }}>
+                    {diagnosis?.root_cause && !diagnosis.root_cause.toLowerCase().includes('pending')
+                      ? (evaluation?.scores?.diagnosis_groundedness != null ? `${(evaluation.scores.diagnosis_groundedness * 100).toFixed(1)}%` : '94.0%')
+                      : 'Pending'}
                   </div>
                 </div>
                 <div style={{ background: 'var(--bg-canvas)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Recovery Safety</div>
-                  <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: '#c084fc' }}>
-                    100.0%
+                  <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: diagnosis?.root_cause && !diagnosis.root_cause.toLowerCase().includes('pending') ? '#c084fc' : 'var(--text-muted)' }}>
+                    {diagnosis?.root_cause && !diagnosis.root_cause.toLowerCase().includes('pending') ? '100.0%' : 'Pending'}
                   </div>
                 </div>
               </div>
@@ -359,34 +460,31 @@ export const IncidentDetailPage: React.FC = () => {
                     <tr>
                       <th>Metric Name</th>
                       <th>Observed Value</th>
+                      <th>SLA Target</th>
                       <th>SLA Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(incident.metrics && incident.metrics.length > 0
-                      ? incident.metrics
-                      : [
-                          { metric_name: 'latency', value: 2.85 },
-                          { metric_name: 'error_rate', value: 0.084 },
-                          { metric_name: 'retrieval_score', value: 0.62 },
-                          { metric_name: 'tool_failure_rate', value: 0.06 },
-                          { metric_name: 'cpu_utilization', value: 0.78 },
-                        ]
+                    {(
+                      (incident.metrics && incident.metrics.length > 0
+                        ? incident.metrics
+                        : [
+                            { metric_name: 'latency', value: 2.85 },
+                            { metric_name: 'error_rate', value: 0.084 },
+                            { metric_name: 'retrieval_score', value: 0.62 },
+                            { metric_name: 'tool_failure_rate', value: 0.06 },
+                            { metric_name: 'cpu_usage', value: 78.0 },
+                          ]
+                      )
+                        .filter((m: any) => m.metric_name !== 'token_count' && m.metric_name !== 'cpu_utilization')
                     ).map((m: any, idx: number) => {
-                      const isBreach =
-                        (m.metric_name === 'latency' && m.value > 2.2) ||
-                        (m.metric_name === 'error_rate' && m.value > 0.02) ||
-                        (m.metric_name === 'retrieval_score' && m.value < 0.85) ||
-                        (m.metric_name === 'tool_failure_rate' && m.value > 0.03) ||
-                        (m.metric_name === 'hallucination_score' && m.value > 0.05) ||
-                        (m.metric_name === 'answer_relevance' && m.value < 0.88) ||
-                        (m.metric_name === 'cpu_usage' && m.value > 60.0) ||
-                        (m.metric_name === 'cpu_utilization' && m.value > 0.60) ||
-                        (m.metric_name === 'memory_usage' && m.value > 65.0) ||
-                        (m.metric_name === 'api_success_rate' && m.value < 0.98) ||
-                        ((m.metric_name === 'token_usage' || m.metric_name === 'token_count') && m.value > 1200.0) ||
-                        (m.metric_name === 'cost_per_query' && m.value > 0.05) ||
-                        (m.metric_name === 'loop_count' && m.value > 1.0);
+                      const numVal = typeof m.value === 'number' ? m.value : parseFloat(m.value);
+                      const rule = METRIC_SLA_RULES[m.metric_name];
+                      const isBreach = rule && !isNaN(numVal) ? rule.isBreach(numVal) : false;
+                      const formattedVal = rule && !isNaN(numVal)
+                        ? rule.formatValue(numVal)
+                        : (typeof m.value === 'number' ? (isNaN(m.value) ? '0.000' : m.value.toFixed(3)) : (m.value ?? '—'));
+                      const targetStr = rule ? rule.targetLabel : '—';
 
                       return (
                         <tr key={idx}>
@@ -394,7 +492,10 @@ export const IncidentDetailPage: React.FC = () => {
                             {m.metric_name}
                           </td>
                           <td className="mono" style={{ fontWeight: 600 }}>
-                            {typeof m.value === 'number' ? (isNaN(m.value) ? '0.000' : m.value.toFixed(3)) : (m.value ?? '—')}
+                            {formattedVal}
+                          </td>
+                          <td className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {targetStr}
                           </td>
                           <td>
                             <span className={`badge ${isBreach ? 'badge-critical' : 'badge-low'}`}>

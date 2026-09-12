@@ -6,7 +6,7 @@ Per Section 32, operations degrade gracefully if database connectivity is unavai
 """
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
@@ -40,6 +40,51 @@ def create_incident(
     """
     incident_id = str(uuid.uuid4())
     now = _now()
+    dedup_window_seconds = 30
+    cutoff = now - timedelta(seconds=dedup_window_seconds)
+
+    # 1. Dedup check against existing DB incidents
+    def _find_recent_duplicate(session: Session) -> Optional[Incident]:
+        stmt = (
+            select(Incident)
+            .where(
+                Incident.failure_type == failure_type,
+                Incident.status.in_(["open", "investigating"]),
+                Incident.created_at >= cutoff,
+            )
+            .order_by(Incident.created_at.desc())
+        )
+        return session.scalars(stmt).first()
+
+    try:
+        existing = None
+        if db is not None:
+            existing = _find_recent_duplicate(db)
+        else:
+            with db_session() as session:
+                existing = _find_recent_duplicate(session)
+        if existing:
+            logger.info("Deduplication: returning recent open incident %s for %s", existing.id, failure_type)
+            return existing
+    except Exception as exc:
+        logger.debug("DB query during dedup check failed: %s", exc)
+
+    # Also check in-memory list
+    for inc in reversed(_IN_MEMORY_INCIDENTS):
+        if isinstance(inc, dict):
+            f_type = inc.get("failure_type")
+            st = inc.get("status")
+            c_at = inc.get("created_at")
+        else:
+            f_type = getattr(inc, "failure_type", None)
+            st = getattr(inc, "status", None)
+            c_at = getattr(inc, "created_at", None)
+
+        if f_type == failure_type and st in ("open", "investigating") and c_at:
+            age = (now - c_at).total_seconds() if hasattr(c_at, "total_seconds") or isinstance(c_at, datetime) else 999
+            if age < dedup_window_seconds:
+                logger.info("Deduplication (in-memory): returning recent incident %s", getattr(inc, "id", None))
+                return inc
 
     incident = Incident(
         id=incident_id,
@@ -55,6 +100,9 @@ def create_incident(
     snapshots: List[MetricSnapshot] = []
     if metrics:
         for metric_name, value in metrics.items():
+            # Skip alias duplicate fields (consolidating to token_usage and cpu_usage)
+            if metric_name in ("token_count", "cpu_utilization"):
+                continue
             snapshot = MetricSnapshot(
                 id=str(uuid.uuid4()),
                 incident_id=incident_id,
