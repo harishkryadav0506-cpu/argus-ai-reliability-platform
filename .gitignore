@@ -10,4 +10,3 @@ dist/
 venv/
 *.egg-info/
 .DS_Store
-ANTIGRAVITY_TASKS.md
