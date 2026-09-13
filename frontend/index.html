@@ -11,6 +11,26 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function() {
+        var prevOnError = window.onerror;
+        window.onerror = function(msg, url, line, col, err) {
+          var errorStr = String(msg || '');
+          var stackStr = (err && err.stack) ? String(err.stack) : '';
+          if (
+            errorStr.indexOf("reading 'startTime'") !== -1 ||
+            stackStr.indexOf('reportAllChanges') !== -1 ||
+            stackStr.indexOf('startTime') !== -1
+          ) {
+            return true; // Prevents default browser console error logging for this external injection bug
+          }
+          if (typeof prevOnError === 'function') {
+            return prevOnError.apply(this, arguments);
+          }
+          return false;
+        };
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

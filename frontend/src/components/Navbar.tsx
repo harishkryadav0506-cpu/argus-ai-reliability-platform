@@ -18,9 +18,12 @@ export const Navbar: React.FC = () => {
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const location = useLocation();
 
+  const isMountedRef = React.useRef(true);
+
   const fetchStatus = async () => {
     try {
       const metricsData = await api.getMetrics(5);
+      if (!isMountedRef.current) return;
       const cur = metricsData.current;
       // If error_rate > 0.05 or latency > 2.5 or tool_failure_rate > 0.05, consider degraded
       if (cur.error_rate > 0.05) setActiveFault('HIGH ERROR RATE');
@@ -31,13 +34,17 @@ export const Navbar: React.FC = () => {
 
       try {
         const countData = await api.getIncidentCount();
-        setIncidentCount(countData.unresolved);
+        if (isMountedRef.current) {
+          setIncidentCount(countData.unresolved);
+        }
       } catch {
         const incs = await api.getIncidents(100);
-        const unresolved = incs.filter(
-          (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
-        ).length;
-        setIncidentCount(unresolved);
+        if (isMountedRef.current) {
+          const unresolved = incs.filter(
+            (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
+          ).length;
+          setIncidentCount(unresolved);
+        }
       }
     } catch {
       // ignore in background polling
@@ -45,9 +52,17 @@ export const Navbar: React.FC = () => {
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchStatus();
-    const timer = setInterval(fetchStatus, 4000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => {
+      if (isMountedRef.current) {
+        fetchStatus();
+      }
+    }, 4000);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(timer);
+    };
   }, []);
 
   const handleReset = async () => {

@@ -60,27 +60,42 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const isMountedRef = React.useRef(true);
+
   const loadData = async () => {
     try {
       const [mRes, iRes] = await Promise.all([
         api.getMetrics(40),
         api.getIncidents(10),
       ]);
+      if (!isMountedRef.current) return;
       setCurrentMetrics(mRes.current);
       setHistory(mRes.history || []);
       setRecentIncidents(iRes || []);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch dashboard metrics');
+      if (isMountedRef.current) {
+        setError(err.message || 'Failed to fetch dashboard metrics');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadData();
-    const interval = setInterval(loadData, 2000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (isMountedRef.current) {
+        loadData();
+      }
+    }, 2000);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+    };
   }, []);
 
   if (loading && !currentMetrics) {

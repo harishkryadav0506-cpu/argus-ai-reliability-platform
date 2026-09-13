@@ -95,12 +95,15 @@ export const SimulationPage: React.FC = () => {
     },
   ];
 
+  const isMountedRef = React.useRef(true);
+
   const fetchMetrics = async () => {
     try {
       const [data, statusData] = await Promise.all([
         api.getMetrics(5),
         api.getSimulationStatus().catch(() => null),
       ]);
+      if (!isMountedRef.current) return;
       setCurrentMetrics(data.current);
       if (statusData) {
         if (statusData.is_fault_active && statusData.active_fault) {
@@ -110,14 +113,24 @@ export const SimulationPage: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error(e);
+      if (isMountedRef.current) {
+        console.error(e);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchMetrics();
-    const timer = setInterval(fetchMetrics, 2000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => {
+      if (isMountedRef.current) {
+        fetchMetrics();
+      }
+    }, 2000);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(timer);
+    };
   }, []);
 
   const handleInjectFault = async (faultId: string) => {
