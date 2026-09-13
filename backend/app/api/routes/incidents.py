@@ -132,12 +132,27 @@ def approve_recovery_action(
         # Resuming active in-memory LangGraph thread
         try:
             resume_cmd = Command(resume={"approved": True, "notes": notes, "actor": actor})
-            exec_res = final_state.get("execution_result", {})
-            verif_res = final_state.get("verification_result", {})
-            strat_info = final_state.get("selected_strategy", {})
+            final_state = argus_graph.invoke(resume_cmd, config=config)
+            exec_res = final_state.get("execution_result", {}) or {}
+            verif_res = final_state.get("verification_result", {}) or {}
+            strat_info = final_state.get("selected_strategy", {}) or {}
             strat_name = strat_info.get("name") or strat_info.get("action") or exec_res.get("strategy") or "action"
             exec_status = "executed" if exec_res.get("status") == "success" else "failed"
             msg = f"Recovery ({strat_name}) approved by {actor} and executed via LangGraph."
+            verified = bool(verif_res.get("verified", verif_res.get("recovery_verified", False)))
+            incident_service.update_incident(
+                incident_id=incident_id,
+                status="resolved" if verified else "open",
+                resolution_notes=verif_res.get("details", msg),
+                db=db,
+            )
+            recovery_service.update_recovery_action(
+                incident_id=incident_id,
+                approval_status="approved",
+                execution_status=exec_status,
+                result=msg,
+                db=db,
+            )
         except Exception as e:
             logger.error("Error resuming LangGraph thread %s: %s", incident_id, e)
             exec_res = {"status": "error", "error": str(e)}

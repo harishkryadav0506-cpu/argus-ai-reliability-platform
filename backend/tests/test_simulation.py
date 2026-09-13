@@ -42,6 +42,14 @@ def clean_simulation_state():
     simulation_engine.reset_to_normal()
 
 
+@pytest.fixture(autouse=True)
+def clear_incident_dedup_cache():
+    """Test isolation: 30-second in-memory dedup window ko har test se pehle/baad clear karo."""
+    incident_service._IN_MEMORY_INCIDENTS.clear()
+    yield
+    incident_service._IN_MEMORY_INCIDENTS.clear()
+
+
 # --- 1. Metric Generation Tests ---
 
 def test_normal_metrics_contain_all_ten_keys():
@@ -255,4 +263,3 @@ def test_api_section_29_demo_scenario():
 
     # Verify final recovery state is healthy
     assert data["restored_metrics"]["retrieval_score"] >= 0.85
-
