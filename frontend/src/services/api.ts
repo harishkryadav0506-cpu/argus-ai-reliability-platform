@@ -80,8 +80,14 @@ export const api = {
   },
 
   // Incidents
-  getIncidents: (limit = 100): Promise<Incident[]> =>
-    fetchJson<Incident[]>(`/api/incidents?limit=${limit}`),
+  getIncidents: (limit = 100, status?: string): Promise<Incident[]> => {
+    const query = status ? `/api/incidents?limit=${limit}&status=${encodeURIComponent(status)}` : `/api/incidents?limit=${limit}`;
+    return fetchJson<Incident[]>(query);
+  },
+
+  getIncidentCount: (): Promise<{ total: number; unresolved: number; open: number; investigating: number; escalated: number; resolved: number }> =>
+    fetchJson('/api/incidents/count'),
+
 
   getIncident: (id: string): Promise<Incident> =>
     fetchJson<Incident>(`/api/incidents/${id}`),

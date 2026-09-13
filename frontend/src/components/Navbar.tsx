@@ -29,11 +29,16 @@ export const Navbar: React.FC = () => {
       else if (cur.cost_per_query > 0.08) setActiveFault('COST SPIKE');
       else setActiveFault(null);
 
-      const incs = await api.getIncidents(100);
-      const unresolved = incs.filter(
-        (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
-      ).length;
-      setIncidentCount(unresolved);
+      try {
+        const countData = await api.getIncidentCount();
+        setIncidentCount(countData.unresolved);
+      } catch {
+        const incs = await api.getIncidents(100);
+        const unresolved = incs.filter(
+          (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
+        ).length;
+        setIncidentCount(unresolved);
+      }
     } catch {
       // ignore in background polling
     }

@@ -25,13 +25,26 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 @router.get("", response_model=List[IncidentResponse])
 def list_incidents(
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=1000),
+    status: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     """
     Returns the list of recorded incidents.
     """
-    return incident_service.list_incidents(db=db, limit=limit)
+    return incident_service.list_incidents(db=db, limit=limit, status=status)
+
+
+@router.get("/count")
+def get_incidents_count(
+    status: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns incident counts (total, unresolved, and breakdown by status).
+    """
+    return incident_service.count_incidents(db=db, status=status)
+
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)

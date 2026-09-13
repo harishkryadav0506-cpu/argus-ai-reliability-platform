@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.database.models import Incident, MetricSnapshot, AuditLog
 from app.database.session import db_session
@@ -149,21 +149,80 @@ def create_incident(
     return incident
 
 
-def list_incidents(db: Optional[Session] = None, limit: int = 50) -> List[Incident]:
+def list_incidents(
+    db: Optional[Session] = None,
+    limit: int = 50,
+    status: Optional[str] = None,
+) -> List[Incident]:
     """
-    Retrieves the most recent incidents.
+    Retrieves the most recent incidents, optionally filtered by status.
     """
     try:
         if db is not None:
-            stmt = select(Incident).options(selectinload(Incident.metrics)).order_by(Incident.created_at.desc()).limit(limit)
-            return list(db.scalars(stmt).all())
+            stmt = select(Incident).options(selectinload(Incident.metrics)).order_by(Incident.created_at.desc())
+            if status:
+                stmt = stmt.where(Incident.status == status)
+            return list(db.scalars(stmt.limit(limit)).all())
         else:
             with db_session() as session:
-                stmt = select(Incident).options(selectinload(Incident.metrics)).order_by(Incident.created_at.desc()).limit(limit)
-                return list(session.scalars(stmt).all())
+                stmt = select(Incident).options(selectinload(Incident.metrics)).order_by(Incident.created_at.desc())
+                if status:
+                    stmt = stmt.where(Incident.status == status)
+                return list(session.scalars(stmt.limit(limit)).all())
     except Exception as e:
         logger.warning("Database unavailable during list_incidents (%s); returning in-memory incidents.", e)
-        return list(reversed(_IN_MEMORY_INCIDENTS))[:limit]
+        items = list(reversed(_IN_MEMORY_INCIDENTS))
+        if status:
+            items = [i for i in items if i.status == status]
+        return items[:limit]
+
+
+def count_incidents(
+    db: Optional[Session] = None,
+    status: Optional[str] = None,
+) -> Dict[str, int]:
+    """
+    Returns total, unresolved, and status-breakdown incident counts.
+    """
+    try:
+        if db is not None:
+            session = db
+            total = session.scalar(select(func.count(Incident.id))) or 0
+            open_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "open")) or 0
+            inv_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "investigating")) or 0
+            esc_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "escalated")) or 0
+            res_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "resolved")) or 0
+        else:
+            with db_session() as session:
+                total = session.scalar(select(func.count(Incident.id))) or 0
+                open_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "open")) or 0
+                inv_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "investigating")) or 0
+                esc_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "escalated")) or 0
+                res_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "resolved")) or 0
+        unresolved = open_cnt + inv_cnt + esc_cnt
+        return {
+            "total": int(total),
+            "unresolved": int(unresolved),
+            "open": int(open_cnt),
+            "investigating": int(inv_cnt),
+            "escalated": int(esc_cnt),
+            "resolved": int(res_cnt),
+        }
+    except Exception as e:
+        logger.warning("Database unavailable during count_incidents (%s); returning in-memory count.", e)
+        total = len(_IN_MEMORY_INCIDENTS)
+        open_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "open")
+        inv_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "investigating")
+        esc_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "escalated")
+        res_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "resolved")
+        return {
+            "total": total,
+            "unresolved": open_cnt + inv_cnt + esc_cnt,
+            "open": open_cnt,
+            "investigating": inv_cnt,
+            "escalated": esc_cnt,
+            "resolved": res_cnt,
+        }
 
 
 def get_incident(incident_id: str, db: Optional[Session] = None) -> Optional[Incident]:
