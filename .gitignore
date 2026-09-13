@@ -4,9 +4,11 @@ __pycache__/
 *.db
 .pytest_cache/
 data/vector_store/
+backend/data/vector_store/
 node_modules/
 dist/
 .venv/
 venv/
 *.egg-info/
 .DS_Store
+ANTIGRAVITY_TASKS.md
