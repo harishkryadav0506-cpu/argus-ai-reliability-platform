@@ -379,9 +379,4 @@ The ARGUS platform underwent two rigorous rounds of comprehensive manual QA test
 
 ---
 
-## 22. Future Improvements
 
-- **Distributed Checkpointer Persistence**: Migrate from the in-memory `MemorySaver` to a distributed Redis / PostgreSQL LangGraph checkpointer for horizontal multi-replica worker scaling.
-- **Adaptive Dynamic SLA Boundaries**: Incorporate seasonal Holt-Winters or Prophet models to automatically modulate SLA breach thresholds based on time-of-day traffic seasonality.
-- **Active MCP Client Bridge**: Extend the internal MCP server to connect to external third-party MCP servers (e.g. GitHub MCP server for automated pull-request rollbacks, Kubernetes MCP server for pod evictions).
-- **Online Fine-Tuning Pipeline**: Automate periodic fine-tuning of compact local LLMs (e.g. Llama-3-8B-Instruct) directly from the curated `dataset.jsonl` export to achieve offline diagnostic autonomy.
