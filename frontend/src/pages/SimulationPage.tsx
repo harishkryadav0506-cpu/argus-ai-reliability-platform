@@ -429,7 +429,7 @@ export const SimulationPage: React.FC = () => {
         Canonical Failure Categories (Phase 2 Ingestion)
       </h2>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
         {faultConfigs.map((f) => {
           const IconComponent = f.icon;
           const isThisActive = activeFault === f.id;
