@@ -36,6 +36,7 @@ export const IncidentsPage: React.FC = () => {
   const isMountedRef = React.useRef(true);
 
   const fetchIncidents = async () => {
+    isMountedRef.current = true;
     setIsRefreshing(true);
     try {
       const [data, countData] = await Promise.all([
@@ -43,9 +44,23 @@ export const IncidentsPage: React.FC = () => {
         api.getIncidentCount().catch(() => null),
       ]);
       if (!isMountedRef.current) return;
-      setIncidents(data || []);
+      setIncidents([...(data || [])]);
       if (countData) {
-        setGlobalCounts(countData);
+        setGlobalCounts({ ...countData });
+      } else if (data) {
+        const open = data.filter((i) => i.status === 'open').length;
+        const investigating = data.filter((i) => i.status === 'investigating').length;
+        const resolved = data.filter((i) => i.status === 'resolved').length;
+        const escalated = data.filter((i) => i.status === 'escalated').length;
+        setGlobalCounts({
+          total: data.length,
+          unresolved: open + investigating + escalated,
+          active: open + investigating,
+          open,
+          investigating,
+          escalated,
+          resolved,
+        });
       }
     } catch (e) {
       if (isMountedRef.current) {
@@ -107,8 +122,12 @@ export const IncidentsPage: React.FC = () => {
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
+            type="button"
             className="btn btn-secondary btn-sm"
-            onClick={fetchIncidents}
+            onClick={(e) => {
+              e.preventDefault();
+              fetchIncidents();
+            }}
             disabled={isRefreshing}
           >
             <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />
