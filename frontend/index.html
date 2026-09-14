@@ -13,6 +13,29 @@
     />
     <script>
       (function() {
+        // 1. Defensively wrap setTimeout to absorb the external web-vitals timer exception (at et.reportAllChanges at n.timeout)
+        var origSetTimeout = window.setTimeout;
+        window.setTimeout = function(fn, delay) {
+          var args = Array.prototype.slice.call(arguments, 2);
+          if (typeof fn === 'function') {
+            var safeFn = function() {
+              try {
+                return fn.apply(this, args);
+              } catch (err) {
+                var errStr = String((err && (err.message || err)) || '');
+                var stackStr = String((err && err.stack) || '');
+                if (errStr.indexOf("reading 'startTime'") !== -1 || stackStr.indexOf('reportAllChanges') !== -1) {
+                  return; // Silently absorb known external web-vitals attribution bug at the timer boundary
+                }
+                throw err;
+              }
+            };
+            return origSetTimeout.call(this, safeFn, delay);
+          }
+          return origSetTimeout.apply(this, arguments);
+        };
+
+        // 2. Global window.onerror fallback
         var prevOnError = window.onerror;
         window.onerror = function(msg, url, line, col, err) {
           var errorStr = String(msg || '');
@@ -22,7 +45,7 @@
             stackStr.indexOf('reportAllChanges') !== -1 ||
             stackStr.indexOf('startTime') !== -1
           ) {
-            return true; // Prevents default browser console error logging for this external injection bug
+            return true; // Prevents default browser console error logging
           }
           if (typeof prevOnError === 'function') {
             return prevOnError.apply(this, arguments);

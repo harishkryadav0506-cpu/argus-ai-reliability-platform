@@ -139,12 +139,15 @@ def run_section_29_demo() -> Dict[str, Any]:
         confidence=confidence,
         metrics=degraded_metrics,
     )
+    inc_title = getattr(incident, "title", "Vector Store Retrieval & Embedding Degradation")
+    inc_id = getattr(incident, "id", None) or "demo-incident"
+    inc_sev = getattr(incident, "severity", "high")
     steps.append(
         DemoStepResult(
             step=4,
             name="Create Incident",
-            description=f"Incident '{incident.title}' registered in system ledger with ID {incident.id[:8]}... (Status: investigating).",
-            details={"incident_id": incident.id, "title": incident.title, "severity": incident.severity},
+            description=f"Incident '{inc_title}' registered in system ledger with ID {inc_id[:8]}... (Status: investigating).",
+            details={"incident_id": inc_id, "title": inc_title, "severity": inc_sev},
             telemetry=degraded_metrics,
         ).to_dict()
     )

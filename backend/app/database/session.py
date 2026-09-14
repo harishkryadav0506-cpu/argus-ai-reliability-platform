@@ -23,7 +23,7 @@ if "postgresql" in settings.DATABASE_URL:
     connect_args["connect_timeout"] = 1
 
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:

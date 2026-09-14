@@ -22,22 +22,49 @@ export const IncidentsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [failureTypeFilter, setFailureTypeFilter] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [globalCounts, setGlobalCounts] = useState<{
+    total: number;
+    unresolved: number;
+    active: number;
+    open: number;
+    investigating: number;
+    mitigating?: number;
+    escalated: number;
+    resolved: number;
+  } | null>(null);
+
+  const isMountedRef = React.useRef(true);
 
   const fetchIncidents = async () => {
     setIsRefreshing(true);
     try {
-      const data = await api.getIncidents(100);
+      const [data, countData] = await Promise.all([
+        api.getIncidents(100),
+        api.getIncidentCount().catch(() => null),
+      ]);
+      if (!isMountedRef.current) return;
       setIncidents(data || []);
+      if (countData) {
+        setGlobalCounts(countData);
+      }
     } catch (e) {
-      console.error('Failed to load incidents:', e);
+      if (isMountedRef.current) {
+        console.error('Failed to load incidents:', e);
+      }
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     fetchIncidents();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const filteredIncidents = incidents.filter((inc) => {
@@ -58,12 +85,16 @@ export const IncidentsPage: React.FC = () => {
     return matchesSearch && matchesSeverity && matchesStatus && matchesFailureType;
   });
 
-  const totalCount = incidents.length;
-  const activeCount = incidents.filter(
-    (i) => i.status === 'open' || i.status === 'investigating'
-  ).length;
-  const resolvedCount = incidents.filter((i) => i.status === 'resolved').length;
-  const escalatedCount = incidents.filter((i) => i.status === 'escalated').length;
+  const totalCount = globalCounts ? globalCounts.total : incidents.length;
+  const activeCount = globalCounts
+    ? (globalCounts.active ?? (globalCounts.open + globalCounts.investigating + (globalCounts.mitigating || 0)))
+    : incidents.filter((i) => i.status === 'open' || i.status === 'investigating').length;
+  const resolvedCount = globalCounts
+    ? globalCounts.resolved
+    : incidents.filter((i) => i.status === 'resolved').length;
+  const escalatedCount = globalCounts
+    ? globalCounts.escalated
+    : incidents.filter((i) => i.status === 'escalated').length;
 
   return (
     <div>

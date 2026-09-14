@@ -47,6 +47,7 @@ def create_incident(
     def _find_recent_duplicate(session: Session) -> Optional[Incident]:
         stmt = (
             select(Incident)
+            .options(selectinload(Incident.metrics))
             .where(
                 Incident.failure_type == failure_type,
                 Incident.status.in_(["open", "investigating"]),
@@ -54,7 +55,11 @@ def create_incident(
             )
             .order_by(Incident.created_at.desc())
         )
-        return session.scalars(stmt).first()
+        found = session.scalars(stmt).first()
+        if found:
+            session.expunge(found)
+            return found
+        return None
 
     try:
         existing = None
@@ -129,6 +134,10 @@ def create_incident(
             session.add(s)
         session.add(audit_entry)
         session.flush()
+        try:
+            session.expunge(incident)
+        except Exception:
+            pass
 
     try:
         if db is not None:
@@ -190,6 +199,7 @@ def count_incidents(
             total = session.scalar(select(func.count(Incident.id))) or 0
             open_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "open")) or 0
             inv_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "investigating")) or 0
+            mit_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "mitigating")) or 0
             esc_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "escalated")) or 0
             res_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "resolved")) or 0
         else:
@@ -197,29 +207,37 @@ def count_incidents(
                 total = session.scalar(select(func.count(Incident.id))) or 0
                 open_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "open")) or 0
                 inv_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "investigating")) or 0
+                mit_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "mitigating")) or 0
                 esc_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "escalated")) or 0
                 res_cnt = session.scalar(select(func.count(Incident.id)).where(Incident.status == "resolved")) or 0
-        unresolved = open_cnt + inv_cnt + esc_cnt
+        active = open_cnt + inv_cnt + mit_cnt
+        unresolved = active + esc_cnt
         return {
             "total": int(total),
             "unresolved": int(unresolved),
+            "active": int(active),
             "open": int(open_cnt),
             "investigating": int(inv_cnt),
+            "mitigating": int(mit_cnt),
             "escalated": int(esc_cnt),
             "resolved": int(res_cnt),
         }
     except Exception as e:
         logger.warning("Database unavailable during count_incidents (%s); returning in-memory count.", e)
         total = len(_IN_MEMORY_INCIDENTS)
-        open_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "open")
-        inv_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "investigating")
-        esc_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "escalated")
-        res_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if i.status == "resolved")
+        open_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if getattr(i, "status", None) == "open")
+        inv_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if getattr(i, "status", None) == "investigating")
+        mit_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if getattr(i, "status", None) == "mitigating")
+        esc_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if getattr(i, "status", None) == "escalated")
+        res_cnt = sum(1 for i in _IN_MEMORY_INCIDENTS if getattr(i, "status", None) == "resolved")
+        active = open_cnt + inv_cnt + mit_cnt
         return {
             "total": total,
-            "unresolved": open_cnt + inv_cnt + esc_cnt,
+            "unresolved": active + esc_cnt,
+            "active": active,
             "open": open_cnt,
             "investigating": inv_cnt,
+            "mitigating": mit_cnt,
             "escalated": esc_cnt,
             "resolved": res_cnt,
         }

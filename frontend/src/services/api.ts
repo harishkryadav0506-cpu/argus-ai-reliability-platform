@@ -85,8 +85,16 @@ export const api = {
     return fetchJson<Incident[]>(query);
   },
 
-  getIncidentCount: (): Promise<{ total: number; unresolved: number; open: number; investigating: number; escalated: number; resolved: number }> =>
-    fetchJson('/api/incidents/count'),
+  getIncidentCount: (): Promise<{
+    total: number;
+    unresolved: number;
+    active: number;
+    open: number;
+    investigating: number;
+    mitigating?: number;
+    escalated: number;
+    resolved: number;
+  }> => fetchJson('/api/incidents/count'),
 
 
   getIncident: (id: string): Promise<Incident> =>
