@@ -41,9 +41,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Create test database
+        run: |
+          PGPASSWORD=argus psql -h localhost -U argus -d argus -tc "SELECT 1 FROM pg_database WHERE datname = 'argus_test'" | grep -q 1 || PGPASSWORD=argus psql -h localhost -U argus -d argus -c "CREATE DATABASE argus_test;"
+
       - name: Run Backend Pytest Suite
         env:
-          DATABASE_URL: postgresql://argus:argus@localhost:5432/argus
+          DATABASE_URL: postgresql://argus:argus@localhost:5432/argus_test
           ARGUS_ENV: testing
           VECTOR_DB_PATH: data/vector_store
         run: |
