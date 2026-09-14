@@ -153,7 +153,10 @@ def create_incident(
             e,
             incident_id,
         )
+    finally:
         _IN_MEMORY_INCIDENTS.append(incident)
+        if len(_IN_MEMORY_INCIDENTS) > 100:
+            del _IN_MEMORY_INCIDENTS[0 : len(_IN_MEMORY_INCIDENTS) - 100]
 
     return incident
 
