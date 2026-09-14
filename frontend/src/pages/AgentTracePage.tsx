@@ -76,13 +76,34 @@ export const AgentTracePage: React.FC = () => {
   const failureType = selectedIncident?.failure_type || 'LATENCY_SPIKE';
   const isResolved = selectedIncident?.status === 'resolved';
 
+  const getDeterministicDuration = (
+    incidentId: string,
+    nodeName: string,
+    status: 'completed' | 'active' | 'waiting' | 'skipped',
+    minMs: number,
+    maxMs: number
+  ): string => {
+    if (status === 'active') return 'Waiting';
+    if (status === 'waiting' || status === 'skipped') return '-';
+    const str = `${incidentId || 'default'}_${nodeName}`;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const duration = minMs + (Math.abs(hash) % (maxMs - minMs + 1));
+    return `${duration}ms`;
+  };
+
+  const currentIncId = selectedIncident?.id || '';
+
   const traceNodes: TraceNode[] = [
     {
       id: 'detection',
       name: 'Anomaly Detection',
       agent: 'DetectionAgent',
       status: 'completed',
-      duration: '42ms',
+      duration: getDeterministicDuration(currentIncId, 'Detection', 'completed', 30, 60),
       description: 'Z-score rolling mean threshold (2.8σ) + Isolation Forest anomaly ensemble',
       details: {
         detector: 'Ensemble (Rolling Z-score + Isolation Forest)',
@@ -108,7 +129,7 @@ export const AgentTracePage: React.FC = () => {
       name: 'Runbook Retrieval',
       agent: 'RAGRetrieval',
       status: 'completed',
-      duration: '115ms',
+      duration: getDeterministicDuration(currentIncId, 'Runbook Retrieval', 'completed', 80, 150),
       description: 'Semantic vector search against ChromaDB operational runbooks',
       details: {
         vector_db: 'ChromaDB local ONNX store',
@@ -127,7 +148,7 @@ export const AgentTracePage: React.FC = () => {
       name: 'Root Cause Diagnosis',
       agent: 'DiagnosisAgent',
       status: 'completed',
-      duration: '840ms',
+      duration: getDeterministicDuration(currentIncId, 'Diagnosis', 'completed', 600, 1200),
       description: 'Google Gemini structured output requiring runbook evidence citations',
       details: {
         llm_model: 'gemini-3.6-flash (via ChatGoogleGenerativeAI)',
@@ -144,7 +165,7 @@ export const AgentTracePage: React.FC = () => {
       name: 'Strategy Simulation',
       agent: 'RecoveryAgent',
       status: 'completed',
-      duration: '180ms',
+      duration: getDeterministicDuration(currentIncId, 'Strategy', 'completed', 120, 250),
       description: 'Counterfactual simulator evaluating recovery probabilities and risk bounds',
       details: {
         evaluated_strategies: [
@@ -160,7 +181,9 @@ export const AgentTracePage: React.FC = () => {
       name: 'Human Approval Gate',
       agent: 'LangGraph Interrupt',
       status: isResolved ? 'completed' : 'active',
-      duration: isResolved ? '1.2s' : 'Waiting',
+      duration: isResolved
+        ? getDeterministicDuration(currentIncId, 'Approval', 'completed', 800, 1500)
+        : 'Waiting',
       description: 'Native LangGraph interrupt/resume pattern halting execution until human consent',
       details: {
         pattern: 'LangGraph interrupt() & Command(resume={approved: True/False})',
@@ -173,7 +196,9 @@ export const AgentTracePage: React.FC = () => {
       name: 'MCP Action Execution',
       agent: 'MCPServer (restart_service)',
       status: isResolved ? 'completed' : 'waiting',
-      duration: isResolved ? '310ms' : '—',
+      duration: isResolved
+        ? getDeterministicDuration(currentIncId, 'Execution', 'completed', 200, 400)
+        : '-',
       description: 'Allowlist-enforced action execution with pre/post AuditLog recording',
       details: {
         mcp_tool: 'restart_service',
@@ -187,7 +212,9 @@ export const AgentTracePage: React.FC = () => {
       name: 'SLA Telemetry Verification',
       agent: 'VerificationNode',
       status: isResolved ? 'completed' : 'waiting',
-      duration: isResolved ? '250ms' : '—',
+      duration: isResolved
+        ? getDeterministicDuration(currentIncId, 'Verification', 'completed', 150, 300)
+        : '-',
       description: 'Compares post-recovery telemetry against operational baseline SLA bounds',
       details: {
         verification_result: isResolved ? 'recovery_verified: true' : 'Pending',
@@ -200,7 +227,9 @@ export const AgentTracePage: React.FC = () => {
       name: 'Postmortem & Learning',
       agent: 'PostmortemAgent',
       status: isResolved ? 'completed' : 'waiting',
-      duration: isResolved ? '450ms' : '—',
+      duration: isResolved
+        ? getDeterministicDuration(currentIncId, 'Postmortem', 'completed', 300, 500)
+        : '-',
       description: 'Generates postmortem Markdown and auto-ingests incident into ChromaDB (Section 37.4)',
       details: {
         postmortem_generated: isResolved,
