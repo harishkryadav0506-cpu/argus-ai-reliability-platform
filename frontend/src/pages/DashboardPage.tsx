@@ -29,6 +29,7 @@ export const DashboardPage: React.FC = () => {
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalIncidentsCount, setTotalIncidentsCount] = useState<number | null>(null);
 
   // Section 29 14-Step One-Click Demo state
   const [demoRunning, setDemoRunning] = useState<boolean>(false);
@@ -64,14 +65,18 @@ export const DashboardPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [mRes, iRes] = await Promise.all([
+      const [mRes, iRes, countRes] = await Promise.all([
         api.getMetrics(40),
         api.getIncidents(10),
+        api.getIncidentCount().catch(() => null),
       ]);
       if (!isMountedRef.current) return;
       setCurrentMetrics(mRes.current);
       setHistory(mRes.history || []);
       setRecentIncidents(iRes || []);
+      if (countRes && typeof countRes.total === 'number') {
+        setTotalIncidentsCount(countRes.total);
+      }
       setError(null);
     } catch (err: any) {
       if (isMountedRef.current) {
@@ -530,7 +535,7 @@ export const DashboardPage: React.FC = () => {
             Recent Incidents
           </h3>
           <Link to="/incidents" className="btn btn-secondary btn-sm">
-            View All ({recentIncidents.length})
+            {totalIncidentsCount !== null ? `View All (${totalIncidentsCount})` : 'View All'}
             <ExternalLink size={12} />
           </Link>
         </div>

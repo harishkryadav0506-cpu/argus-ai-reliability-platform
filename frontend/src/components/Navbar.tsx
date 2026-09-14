@@ -14,7 +14,8 @@ import { api } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const [activeFault, setActiveFault] = useState<string | null>(null);
-  const [incidentCount, setIncidentCount] = useState<number>(0);
+  const [activeCount, setActiveCount] = useState<number>(0);
+  const [escalatedCount, setEscalatedCount] = useState<number>(0);
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const location = useLocation();
 
@@ -35,15 +36,19 @@ export const Navbar: React.FC = () => {
       try {
         const countData = await api.getIncidentCount();
         if (isMountedRef.current) {
-          setIncidentCount(countData.unresolved);
+          const act = countData.active ?? (countData.open + countData.investigating);
+          setActiveCount(act);
+          setEscalatedCount(countData.escalated || 0);
         }
       } catch {
         const incs = await api.getIncidents(100);
         if (isMountedRef.current) {
-          const unresolved = incs.filter(
-            (i) => i.status === 'open' || i.status === 'investigating' || i.status === 'escalated'
+          const act = incs.filter(
+            (i) => i.status === 'open' || i.status === 'investigating'
           ).length;
-          setIncidentCount(unresolved);
+          const esc = incs.filter((i) => i.status === 'escalated').length;
+          setActiveCount(act);
+          setEscalatedCount(esc);
         }
       }
     } catch {
@@ -97,13 +102,13 @@ export const Navbar: React.FC = () => {
           <NavLink to="/incidents" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <AlertTriangle size={15} />
             Incidents
-            {incidentCount > 0 && (
+            {activeCount > 0 && (
               <span
                 className="badge badge-critical"
                 style={{ padding: '1px 6px', fontSize: '10px' }}
-                title={`${incidentCount} Active / Unresolved Incidents`}
+                title={`${activeCount} active • ${escalatedCount} escalated`}
               >
-                {incidentCount} active
+                {activeCount} active
               </span>
             )}
           </NavLink>
