@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   CheckCircle,
   Database,
@@ -182,6 +183,28 @@ export const EvaluationPage: React.FC = () => {
           <span>{evalSuccessMsg}</span>
         </div>
       )}
+
+      {/* Methodology Banner */}
+      <div
+        style={{
+          background: 'rgba(251,191,36,0.1)',
+          border: '1px solid rgba(251,191,36,0.3)',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-sm)',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          fontSize: '13px',
+          lineHeight: 1.5,
+          color: '#fbbf24',
+        }}
+      >
+        <AlertTriangle size={18} style={{ color: '#fbbf24', flexShrink: 0 }} />
+        <span>
+          Methodology Note: Benchmark results measured on 22 in-distribution scenarios from the canonical failure taxonomy (Sections 18-19). Real-world out-of-distribution incidents may exhibit lower accuracy; continuous monitoring and periodic re-benchmarking are required.
+        </span>
+      </div>
 
       {/* KPI Delta Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
