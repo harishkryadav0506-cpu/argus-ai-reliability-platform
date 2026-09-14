@@ -740,7 +740,9 @@ export const IncidentDetailPage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="badge badge-purple">{cite.source}</span>
-                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{cite.chunk}</span>
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>
+                      {(cite.chunk || cite.document || '').replace(/^Runbook:\s*/i, '')}
+                    </span>
                   </div>
                   <div className="mono" style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>
                     Relevance: {(((cite.relevance_score ?? 0)) * 100).toFixed(1)}%
@@ -759,7 +761,7 @@ export const IncidentDetailPage: React.FC = () => {
                     borderRadius: 'var(--radius-sm)',
                   }}
                 >
-                  {cite.document}
+                  {(cite.document || cite.chunk || '').replace(/^Runbook:\s*/i, '')}
                 </div>
               </div>
             ))}
