@@ -38,13 +38,15 @@ export const EvaluationPage: React.FC = () => {
     fetchBenchmark();
   }, []);
 
+  const scenarioCount = benchmark?.total_scenarios ?? 22;
+
   const handleRunEvaluation = async () => {
     setRunningEval(true);
     setEvalSuccessMsg(null);
     try {
       await api.runBenchmark();
       await fetchBenchmark();
-      setEvalSuccessMsg(`Benchmark suite completed successfully against ${benchmark?.total_scenarios || 22} simulated scenarios.`);
+      setEvalSuccessMsg(`Benchmark suite completed successfully against ${scenarioCount} simulated scenarios.`);
     } catch (e: any) {
       alert(`Evaluation failed: ${e.message}`);
     } finally {
@@ -160,7 +162,7 @@ export const EvaluationPage: React.FC = () => {
             disabled={runningEval}
           >
             <Play size={13} />
-            {runningEval ? 'Running 15 Scenarios...' : 'Run Benchmark Suite'}
+            {runningEval ? `Running ${scenarioCount} Scenarios...` : 'Run Benchmark Suite'}
           </button>
         </div>
       </div>
