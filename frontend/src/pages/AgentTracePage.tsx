@@ -258,13 +258,36 @@ export const AgentTracePage: React.FC = () => {
             className="input-select"
             value={selectedIncidentId}
             onChange={(e) => handleSelectIncident(e.target.value)}
-            style={{ maxWidth: '320px' }}
+            title={
+              selectedIncident
+                ? `[${selectedIncident.severity.toUpperCase()}] ${selectedIncident.title} (${selectedIncident.id})`
+                : ''
+            }
+            style={{
+              maxWidth: '320px',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+            }}
           >
-            {incidents.map((inc) => (
-              <option key={inc.id} value={inc.id}>
-                [{inc.severity.toUpperCase()}] {inc.title.slice(0, 32)}... ({inc.id.slice(0, 6)})
-              </option>
-            ))}
+            {incidents.map((inc) => {
+              const fullLabel = `[${inc.severity.toUpperCase()}] ${inc.title} (${inc.id})`;
+              return (
+                <option
+                  key={inc.id}
+                  value={inc.id}
+                  title={fullLabel}
+                  style={{
+                    maxWidth: '320px',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {fullLabel}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
