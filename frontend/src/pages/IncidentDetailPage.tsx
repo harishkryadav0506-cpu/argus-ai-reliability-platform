@@ -115,6 +115,18 @@ export const IncidentDetailPage: React.FC = () => {
   const [operatorNotes, setOperatorNotes] = useState<string>('');
   const [approvalResult, setApprovalResult] = useState<ApprovalResponse | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'runbooks' | 'counterfactual' | 'trace'>('overview');
+  const [expandedCitations, setExpandedCitations] = useState<Record<number, boolean>>({});
+
+  const cleanCitationMarkdown = (text: string): string => {
+    return text
+      .replace(/^#{1,3}\s*/gm, '')
+      .replace(/\*\*/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/`/g, '')
+      .replace(/[ \t]{3,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
 
   const loadIncidentData = async () => {
     if (!incidentId) return;
@@ -750,18 +762,41 @@ export const IncidentDetailPage: React.FC = () => {
                 </div>
 
                 <div
-                  className="mono"
                   style={{
-                    fontSize: '12px',
-                    lineHeight: 1.6,
-                    color: 'var(--text-secondary)',
-                    whiteSpace: 'pre-wrap',
-                    background: 'var(--bg-surface)',
-                    padding: '12px',
-                    borderRadius: 'var(--radius-sm)',
+                    maxHeight: expandedCitations[i] ? 'none' : '220px',
+                    overflow: 'hidden',
                   }}
                 >
-                  {(cite.document || cite.chunk || '').replace(/^Runbook:\s*/i, '')}
+                  <div
+                    className="mono"
+                    style={{
+                      fontSize: '12px',
+                      lineHeight: 1.6,
+                      color: 'var(--text-secondary)',
+                      whiteSpace: 'pre-wrap',
+                      background: 'var(--bg-surface)',
+                      padding: '12px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    {cleanCitationMarkdown((cite.document || cite.chunk || '').replace(/^Runbook:\s*/i, ''))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                    onClick={() =>
+                      setExpandedCitations((prev) => ({
+                        ...prev,
+                        [i]: !prev[i],
+                      }))
+                    }
+                  >
+                    {expandedCitations[i] ? 'Collapse' : 'Expand'}
+                  </button>
                 </div>
               </div>
             ))}
