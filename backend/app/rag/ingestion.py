@@ -7,6 +7,7 @@ and upserts them into ChromaDB using the local embedding model.
 import glob
 import logging
 import os
+from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional
 import chromadb
@@ -76,18 +77,53 @@ def parse_runbook_markdown(filepath: str) -> Dict[str, Any]:
 
 
 def ingest_runbooks(
-    runbooks_dir: str = "data/runbooks",
+    runbooks_dir: Optional[str] = None,
     collection: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Ingests all reviewed markdown runbooks from runbooks_dir into ChromaDB.
     """
     target_collection = collection or get_runbooks_collection()
-    search_path = os.path.join(runbooks_dir, "*.md")
-    files = glob.glob(search_path)
+
+    candidates: List[str] = []
+    env_dir = os.getenv("RUNBOOKS_DIR")
+    if env_dir:
+        candidates.append(env_dir)
+    if runbooks_dir and runbooks_dir not in candidates and runbooks_dir != "data/runbooks":
+        candidates.append(runbooks_dir)
+    for p in ["data/runbooks", "../data/runbooks", "backend/data/runbooks"]:
+        if p not in candidates:
+            candidates.append(p)
+    try:
+        repo_root_cand = None
+        for parent in Path(__file__).resolve().parents:
+            cand = parent / "data" / "runbooks"
+            if cand.is_dir():
+                repo_root_cand = str(cand)
+                break
+        if not repo_root_cand and len(Path(__file__).resolve().parents) > 3:
+            repo_root_cand = str(Path(__file__).resolve().parents[3] / "data" / "runbooks")
+        if repo_root_cand and repo_root_cand not in candidates:
+            candidates.append(repo_root_cand)
+    except Exception:
+        pass
+
+    resolved_dir: Optional[str] = None
+    files: List[str] = []
+    for cand in candidates:
+        if cand and os.path.exists(cand):
+            md_files = glob.glob(os.path.join(cand, "*.md"))
+            if md_files:
+                resolved_dir = cand
+                files = md_files
+                break
 
     if not files:
-        logger.warning("No markdown runbooks found in %s", runbooks_dir)
+        logger.warning(
+            "No markdown runbooks found in %s (tried: %s)",
+            runbooks_dir or "data/runbooks",
+            ", ".join(candidates),
+        )
         return {"documents_ingested": 0, "chunks_created": 0}
 
     all_ids: List[str] = []
