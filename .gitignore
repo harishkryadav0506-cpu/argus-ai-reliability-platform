@@ -3,6 +3,8 @@ __pycache__/
 .env
 *.db
 .pytest_cache/
+data/*
+!data/runbooks/
 data/vector_store/
 backend/data/vector_store/
 node_modules/
