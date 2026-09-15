@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 /**
  * ARGUS REST API Service Layer
  */
@@ -12,10 +13,10 @@ import {
   HealthResponse,
 } from '../types';
 
-const BASE_URL = '';
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
