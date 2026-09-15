@@ -12,6 +12,19 @@
 
 ---
 
+## 0. Live Demo & Video
+
+<p align="center">
+  <a href="https://argus-frontend-tyer.onrender.com" target="_blank">
+    <img src="https://img.shields.io/badge/🌐_Live_Demo-Click_Here-blue?style=for-the-badge" alt="Live Demo">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://www.youtube.com/watch?v=TStilmhjs8E" target="_blank">
+    <img src="https://img.shields.io/badge/🎬_Watch_Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Video Walkthrough">
+  </a>
+</p>
+
+
 ## 1. Problem
 
 Production AI applications (LLM pipelines, RAG systems, tool-using autonomous agents) are fundamentally probabilistic and distributed. Traditional Application Performance Monitoring (APM) tools (Datadog, New Relic, Prometheus) treat AI services like standard HTTP microservices:
